@@ -137,7 +137,7 @@ function drawBMAData(data, targetLocName) {
 }
 
 // ==========================================
-// 📊 Data Loading & Filtering
+// 📊 Data Loading & Dynamic Dependent Filter Logic
 // ==========================================
 async function loadMarkers(userCode) {
   if (userCode !== undefined) currentUserCode = userCode;
@@ -148,7 +148,9 @@ async function loadMarkers(userCode) {
     if (res && res.success) {
       allData = processDataSequence(res.data || []);
       updateStatisticsCounters(allData);
-      updateFilterDropdowns(allData);
+      
+      // อัปเดต Dropdown หน่วยงานและสถานที่แบบสัมพันธ์กัน
+      initFilterDropdowns(allData);
 
       apiGet('getRepairHistory').then(historyRes => {
         if (historyRes && historyRes.success) {
@@ -211,10 +213,10 @@ function updateStatisticsCounters(data) {
   document.getElementById('count_disposed').innerText = disposed;
 }
 
-function updateFilterDropdowns(data) {
+// 🌟 ฟังก์ชันสร้าง Dropdown เริ่มต้น
+function initFilterDropdowns(data) {
   const dSelect = document.getElementById('departmentFilter');
-  const lSelect = document.getElementById('locationFilter');
-  if (!dSelect || !lSelect || !data) return;
+  if (!dSelect || !data) return;
 
   if (isOfficer && !isAdmin && currentDepartment) {
     dSelect.innerHTML = `<option value="${currentDepartment}">🏢 ${currentDepartment}</option>`;
@@ -227,10 +229,35 @@ function updateFilterDropdowns(data) {
     dSelect.disabled = false;
   }
 
-  let validData = (isOfficer && !isAdmin && currentDepartment) ? data.filter(x => x['หน่วยงาน'] === currentDepartment) : data;
-  const locs = [...new Set(validData.map(x => x['ที่ตั้ง']).filter(Boolean))];
+  // เรียกอัปเดตสถานที่ตามหน่วยงานที่เลือกเริ่มต้น
+  updateLocationDropdownByDepartment(dSelect.value);
+}
+
+// 🌟 ฟังก์ชันอัปเดต Dropdown สถานที่แบบไดนามิกเฉพาะของหน่วยงานนั้นๆ
+function updateLocationDropdownByDepartment(dept) {
+  const lSelect = document.getElementById('locationFilter');
+  if (!lSelect) return;
+
+  let filteredByDept = allData;
+  if (dept && dept !== 'all') {
+    filteredByDept = allData.filter(x => x['หน่วยงาน'] === dept);
+  }
+
+  const locs = [...new Set(filteredByDept.map(x => x['ที่ตั้ง']).filter(Boolean))];
   lSelect.innerHTML = '<option value="all">📍 ทุกสถานที่</option>';
   locs.forEach(l => lSelect.innerHTML += `<option value="${l}">${l}</option>`);
+}
+
+// 🌟 Event Trigger เมื่อผู้ใช้เปลี่ยนการเลือกใน Dropdown หน่วยงาน
+function onDepartmentFilterChange() {
+  const dSelect = document.getElementById('departmentFilter');
+  if (!dSelect) return;
+  
+  // 1. อัปเดตรายชื่อสถานที่ให้เหลือเฉพาะในหน่วยงานที่เลือก
+  updateLocationDropdownByDepartment(dSelect.value);
+  
+  // 2. สั่งกรองข้อมูลและวาดหมุดบนแผนที่ใหม่
+  applyFilters();
 }
 
 function applyFilters() {
@@ -635,21 +662,41 @@ async function loadAllRepairsHistory() {
   });
 
   document.getElementById('successAssetsContainer')?.classList.remove('hidden');
-  updateSuccessDropdowns(successListRaw);
+  initSuccessDropdowns(successListRaw);
   applySuccessFilters();
 }
 
-function updateSuccessDropdowns(data) {
+// 🌟 สร้าง Dropdown เริ่มต้นสำหรับตารางงานซ่อมเสร็จ
+function initSuccessDropdowns(data) {
   const sdSelect = document.getElementById('successDeptFilter');
-  const slSelect = document.getElementById('successLocFilter');
-  if (!sdSelect || !slSelect) return;
+  if (!sdSelect) return;
   const depts = [...new Set(data.map(x => x.department).filter(Boolean))];
   sdSelect.innerHTML = '<option value="all">🏢 ทุกหน่วยงาน</option>';
   depts.forEach(d => sdSelect.innerHTML += `<option value="${d}">${d}</option>`);
+  
+  updateSuccessLocationDropdown(sdSelect.value);
+}
 
-  const locs = [...new Set(data.map(x => x.location).filter(Boolean))];
+// 🌟 อัปเดตสถานที่แบบไดนามิกในตารางงานซ่อมเสร็จ
+function updateSuccessLocationDropdown(dept) {
+  const slSelect = document.getElementById('successLocFilter');
+  if (!slSelect) return;
+
+  let filtered = successListRaw;
+  if (dept && dept !== 'all') {
+    filtered = successListRaw.filter(x => x.department === dept);
+  }
+
+  const locs = [...new Set(filtered.map(x => x.location).filter(Boolean))];
   slSelect.innerHTML = '<option value="all">📍 ทุกสถานที่</option>';
   locs.forEach(l => slSelect.innerHTML += `<option value="${l}">${l}</option>`);
+}
+
+function onSuccessDeptFilterChange() {
+  const sdSelect = document.getElementById('successDeptFilter');
+  if (!sdSelect) return;
+  updateSuccessLocationDropdown(sdSelect.value);
+  applySuccessFilters();
 }
 
 function applySuccessFilters() {
@@ -700,7 +747,7 @@ function displaySuccessTableRecords() {
       <tr class="hover:bg-slate-50 border-b last:border-none">
         <td class="p-2 text-center text-slate-600 font-medium">${h.date}<br/><b class="text-[10px] text-slate-400 font-bold">[${h.repairId}]</b></td>
         <td class="p-2 text-center font-bold text-slate-700">${h.assetId}</td>
-        <td class="p-2 text-center"><span class="bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full font-bold text-[11px]">${h.totalReports || 0} ครั้ง</span></td>
+        <td class="p-2 text-center"><span class="bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 rounded-full font-bold text-[11px]">${h.totalReports || 0} ครั้ง</span></td>
         <td class="p-2"><div class="font-semibold text-slate-800">${h.details}</div><div class="text-[10px] text-slate-400">👤 ช่าง: ${h.reporter} | 🏢 ${h.department} (📍 ${h.location})</div></td>
         <td class="p-2 text-center">${h.imageAfter ? `<button type="button" onclick="openImageModal('${h.imageAfter}')" class="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded border border-emerald-200 font-bold hover:bg-emerald-100 text-[11px] cursor-pointer">🔍 ดูภาพ</button>` : '<span class="text-slate-300 text-[11px]">ไม่มีภาพ</span>'}</td>
         <td class="p-2 text-center"><button type="button" onclick="findAndOpenAsset('${h.assetId}')" class="bg-emerald-600 hover:bg-emerald-700 text-white py-1 px-2.5 rounded-lg font-bold text-[11px] cursor-pointer">👁️ ดูข้อมูล</button></td>
