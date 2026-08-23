@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ระบบบริหารจัดการไฟฟ้าส่องสว่าง</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💡</text></svg>">
 
@@ -349,22 +349,25 @@
                   <div id="dynamicMaterialsList" class="space-y-1.5"></div>
                 </div>
                 
-                <!-- 🌟 กล่องถ่ายรูป / เลือกไฟล์รูปงานซ่อมเสร็จ -->
+                <!-- 🌟 กล่องถ่ายภาพ / แนบไฟล์งานซ่อมเสร็จแบบ 100% Mobile Native -->
                 <div>
-                  <label class="block text-slate-600 font-bold mb-1 text-[11px]">📷 แนบภาพหลักฐานเสร็จสิ้นภารกิจ</label>
+                  <label class="block text-slate-600 font-bold mb-1 text-[11px]">📷 ภาพถ่ายหลักฐานงานซ่อมเสร็จสิ้น</label>
                   <div class="flex items-center gap-2">
-                    <button type="button" onclick="openCameraModal('preview_tech_after', 'imageAfterFile')" class="bg-amber-100 hover:bg-amber-200 text-amber-900 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1 border border-amber-300 cursor-pointer shadow-2xs">
-                      <i class="ph-bold ph-camera text-sm"></i> เปิดกล้องถ่ายภาพ
-                    </button>
+                    <!-- ปุ่มเปิดกล้องตรงๆ ของระบบมือถือ -->
+                    <label class="bg-amber-100 hover:bg-amber-200 text-amber-900 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1 border border-amber-300 cursor-pointer shadow-2xs">
+                      <i class="ph-bold ph-camera text-sm"></i> ถ่ายภาพ
+                      <input type="file" id="imageAfterCapture" accept="image/*" capture="environment" onchange="handleNativeImage(this, 'preview_tech_after', 'imageAfterFile')" class="hidden">
+                    </label>
+                    <!-- ปุ่มเลือกจากแกลเลอรี/เครื่อง -->
                     <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1 border border-slate-300 cursor-pointer shadow-2xs">
                       <i class="ph-bold ph-folder-open text-sm"></i> เลือกไฟล์รูป
-                      <input type="file" id="imageAfterFile" accept="image/*" onchange="previewImageFromFile(this, 'preview_tech_after')" class="hidden">
+                      <input type="file" id="imageAfterFile" accept="image/*" onchange="handleNativeImage(this, 'preview_tech_after', 'imageAfterCapture')" class="hidden">
                     </label>
                   </div>
-                  <!-- กล่องพรีวิวภาพ -->
+                  <!-- กล่องพรีวิวภาพพร้อมปุ่มลบ -->
                   <div id="preview_tech_after_box" class="hidden mt-2 relative inline-block border rounded-lg p-1 bg-white">
                     <img id="preview_tech_after" class="h-20 w-auto rounded object-cover">
-                    <button type="button" onclick="removeImagePreview('preview_tech_after_box', 'preview_tech_after', 'imageAfterFile')" class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-md cursor-pointer">&times;</button>
+                    <button type="button" onclick="removeImagePreview('preview_tech_after_box', 'preview_tech_after', ['imageAfterCapture', 'imageAfterFile'])" class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-md cursor-pointer">&times;</button>
                   </div>
                 </div>
                 
@@ -456,40 +459,42 @@
           </div>
         </div>
         
-        <!-- 🌟 กล่องถ่ายภาพ / แนบไฟล์นำเข้าข้อมูล -->
+        <!-- กล่องถ่ายรูป / แนบไฟล์นำเข้าข้อมูล -->
         <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-3">
           <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-images text-emerald-600 text-base"></i> 4. ภาพถ่ายครุภัณฑ์ & QR Code</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-slate-500 font-medium mb-1">📷 ภาพจุดติดตั้งเสาไฟ</label>
               <div class="flex items-center gap-1.5">
-                <button type="button" onclick="openCameraModal('preview_add_image', 'imageFile')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-2.5 py-1.5 rounded-lg font-bold text-[11px] border border-emerald-200 flex items-center gap-1 cursor-pointer">
+                <label class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-2.5 py-1.5 rounded-lg font-bold text-[11px] border border-emerald-200 flex items-center gap-1 cursor-pointer">
                   <i class="ph-bold ph-camera"></i> ถ่ายภาพ
-                </button>
+                  <input type="file" id="addImageCapture" accept="image/*" capture="environment" onchange="handleNativeImage(this, 'preview_add_image', 'addImageFile')" class="hidden">
+                </label>
                 <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg font-bold text-[11px] border border-slate-300 flex items-center gap-1 cursor-pointer">
                   <i class="ph-bold ph-folder-open"></i> ไฟล์
-                  <input type="file" id="imageFile" accept="image/*" onchange="previewImageFromFile(this, 'preview_add_image')" class="hidden">
+                  <input type="file" id="addImageFile" accept="image/*" onchange="handleNativeImage(this, 'preview_add_image', 'addImageCapture')" class="hidden">
                 </label>
               </div>
               <div id="preview_add_image_box" class="hidden mt-2 relative inline-block border rounded-lg p-1 bg-white">
                 <img id="preview_add_image" class="h-16 w-auto rounded object-cover">
-                <button type="button" onclick="removeImagePreview('preview_add_image_box', 'preview_add_image', 'imageFile')" class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold cursor-pointer">&times;</button>
+                <button type="button" onclick="removeImagePreview('preview_add_image_box', 'preview_add_image', ['addImageCapture', 'addImageFile'])" class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold cursor-pointer">&times;</button>
               </div>
             </div>
             <div>
               <label class="block text-slate-500 font-medium mb-1">🔗 ภาพ QR Code</label>
               <div class="flex items-center gap-1.5">
-                <button type="button" onclick="openCameraModal('preview_add_qr', 'qrCodeFile')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-2.5 py-1.5 rounded-lg font-bold text-[11px] border border-emerald-200 flex items-center gap-1 cursor-pointer">
+                <label class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-2.5 py-1.5 rounded-lg font-bold text-[11px] border border-emerald-200 flex items-center gap-1 cursor-pointer">
                   <i class="ph-bold ph-camera"></i> ถ่ายภาพ
-                </button>
+                  <input type="file" id="addQrCapture" accept="image/*" capture="environment" onchange="handleNativeImage(this, 'preview_add_qr', 'addQrFile')" class="hidden">
+                </label>
                 <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg font-bold text-[11px] border border-slate-300 flex items-center gap-1 cursor-pointer">
                   <i class="ph-bold ph-folder-open"></i> ไฟล์
-                  <input type="file" id="qrCodeFile" accept="image/*" onchange="previewImageFromFile(this, 'preview_add_qr')" class="hidden">
+                  <input type="file" id="addQrFile" accept="image/*" onchange="handleNativeImage(this, 'preview_add_qr', 'addQrCapture')" class="hidden">
                 </label>
               </div>
               <div id="preview_add_qr_box" class="hidden mt-2 relative inline-block border rounded-lg p-1 bg-white">
                 <img id="preview_add_qr" class="h-16 w-auto rounded object-cover">
-                <button type="button" onclick="removeImagePreview('preview_add_qr_box', 'preview_add_qr', 'qrCodeFile')" class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold cursor-pointer">&times;</button>
+                <button type="button" onclick="removeImagePreview('preview_add_qr_box', 'preview_add_qr', ['addQrCapture', 'addQrFile'])" class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold cursor-pointer">&times;</button>
               </div>
             </div>
           </div>
@@ -579,33 +584,35 @@
             <div>
               <label class="block text-slate-500 font-medium mb-1">📷 ภาพจุดติดตั้ง</label>
               <div class="flex items-center gap-1.5">
-                <button type="button" onclick="openCameraModal('preview_edit_image', 'editImageFile')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg font-bold text-[11px] border border-slate-300 flex items-center gap-1 cursor-pointer">
+                <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg font-bold text-[11px] border border-slate-300 flex items-center gap-1 cursor-pointer">
                   <i class="ph-bold ph-camera"></i> ถ่ายใหม่
-                </button>
+                  <input type="file" id="editImageCapture" accept="image/*" capture="environment" onchange="handleNativeImage(this, 'preview_edit_image', 'editImageFile')" class="hidden">
+                </label>
                 <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg font-bold text-[11px] border border-slate-300 flex items-center gap-1 cursor-pointer">
                   <i class="ph-bold ph-folder-open"></i> ไฟล์
-                  <input type="file" id="editImageFile" accept="image/*" onchange="previewImageFromFile(this, 'preview_edit_image')" class="hidden">
+                  <input type="file" id="editImageFile" accept="image/*" onchange="handleNativeImage(this, 'preview_edit_image', 'editImageCapture')" class="hidden">
                 </label>
               </div>
               <div id="preview_edit_image_box" class="hidden mt-2 relative inline-block border rounded-lg p-1 bg-white">
                 <img id="preview_edit_image" class="h-16 w-auto rounded object-cover">
-                <button type="button" onclick="removeImagePreview('preview_edit_image_box', 'preview_edit_image', 'editImageFile')" class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold cursor-pointer">&times;</button>
+                <button type="button" onclick="removeImagePreview('preview_edit_image_box', 'preview_edit_image', ['editImageCapture', 'editImageFile'])" class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold cursor-pointer">&times;</button>
               </div>
             </div>
             <div>
               <label class="block text-slate-500 font-medium mb-1">🔗 ภาพ QR Code</label>
               <div class="flex items-center gap-1.5">
-                <button type="button" onclick="openCameraModal('preview_edit_qr', 'editQrCodeFile')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg font-bold text-[11px] border border-slate-300 flex items-center gap-1 cursor-pointer">
+                <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg font-bold text-[11px] border border-slate-300 flex items-center gap-1 cursor-pointer">
                   <i class="ph-bold ph-camera"></i> ถ่ายใหม่
-                </button>
+                  <input type="file" id="editQrCapture" accept="image/*" capture="environment" onchange="handleNativeImage(this, 'preview_edit_qr', 'editQrFile')" class="hidden">
+                </label>
                 <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg font-bold text-[11px] border border-slate-300 flex items-center gap-1 cursor-pointer">
                   <i class="ph-bold ph-folder-open"></i> ไฟล์
-                  <input type="file" id="editQrCodeFile" accept="image/*" onchange="previewImageFromFile(this, 'preview_edit_qr')" class="hidden">
+                  <input type="file" id="editQrFile" accept="image/*" onchange="handleNativeImage(this, 'preview_edit_qr', 'editQrCapture')" class="hidden">
                 </label>
               </div>
               <div id="preview_edit_qr_box" class="hidden mt-2 relative inline-block border rounded-lg p-1 bg-white">
                 <img id="preview_edit_qr" class="h-16 w-auto rounded object-cover">
-                <button type="button" onclick="removeImagePreview('preview_edit_qr_box', 'preview_edit_qr', 'editQrCodeFile')" class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold cursor-pointer">&times;</button>
+                <button type="button" onclick="removeImagePreview('preview_edit_qr_box', 'preview_edit_qr', ['editQrCapture', 'editQrFile'])" class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold cursor-pointer">&times;</button>
               </div>
             </div>
           </div>
@@ -619,35 +626,6 @@
           <i class="ph-bold ph-floppy-disk-back text-base"></i> 💾 บันทึกแก้ไขโครงสร้างข้อมูล
         </button>
       </form>
-    </div>
-  </div>
-
-  <!-- 🌟 Camera Viewfinder Modal (หน้าต่างกล้องถ่ายภาพสด) -->
-  <div id="cameraModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100010] hidden flex items-center justify-center p-3 animate-fade-in">
-    <div class="bg-slate-900 rounded-2xl w-full max-w-md p-4 shadow-2xl relative flex flex-col items-center border border-slate-800">
-      <button onclick="closeCameraModal()" class="absolute top-3 right-4 text-slate-400 hover:text-white text-2xl font-bold cursor-pointer">&times;</button>
-      <h4 class="text-sm font-bold text-white mb-2 flex items-center gap-1">
-        <i class="ph-bold ph-camera text-emerald-400 text-lg"></i> ถ่ายภาพจากกล้อง
-      </h4>
-      
-      <!-- Video Viewfinder -->
-      <div class="relative w-full aspect-[4/3] bg-black rounded-xl overflow-hidden border border-slate-700 shadow-inner flex items-center justify-center">
-        <video id="cameraVideo" autoplay playsinline class="w-full h-full object-cover"></video>
-        <canvas id="cameraCanvas" class="hidden"></canvas>
-      </div>
-
-      <!-- Camera Action Controls -->
-      <div class="mt-4 flex items-center justify-between w-full px-4">
-        <button type="button" onclick="switchCameraFacing()" class="bg-slate-800 hover:bg-slate-700 text-white p-2.5 rounded-full border border-slate-600 cursor-pointer text-sm flex items-center justify-center" title="สลับกล้องหน้า/หลัง">
-          <i class="ph-bold ph-arrows-clockwise text-lg"></i>
-        </button>
-        <button type="button" onclick="capturePhoto()" class="bg-white hover:bg-slate-200 text-slate-900 w-14 h-14 rounded-full border-4 border-emerald-500 shadow-lg flex items-center justify-center cursor-pointer transition-transform active:scale-95">
-          <div class="w-10 h-10 rounded-full bg-emerald-600"></div>
-        </button>
-        <button type="button" onclick="closeCameraModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-2 rounded-xl border border-slate-600 cursor-pointer">
-          ยกเลิก
-        </button>
-      </div>
     </div>
   </div>
 
