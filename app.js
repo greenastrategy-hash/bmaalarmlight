@@ -7,6 +7,7 @@ let masterDisplayList = [];
 let globalReportCounts = {};
 let currentUserCode = "";
 let indexRawData = [], indexFilteredData = [], indexHeaders = [];
+let compressedImageMap = {}; // คลังเก็บ Base64 ของรูปภาพที่เลือก/ถ่าย
 
 // ==========================================
 // 🚀 Lifecycle Initializer
@@ -128,7 +129,7 @@ function drawBMAData(data, targetLocName) {
     }
   }).addTo(map);
 
-  const worldOuterRing = [[90, -180], [90, 180], [-90, 180], [-90, -180]];
+  const worldOuterRing = [[90, -180], [90, 180], [-90, -180], [-90, -180]];
   const maskRings = [worldOuterRing];
   data.features.forEach(feature => {
     if (isTrashBox(feature)) return;
@@ -583,39 +584,27 @@ async function handleTechSubmit(e) {
     assetId: document.getElementById('techEquipId').value,
     details: completeDetails,
     technicianName: document.getElementById('techName').value,
-    imageAfter: capturedBlobMap['imageAfterFile'] ? capturedBlobMap['imageAfterFile'].base64 : null
+    imageAfter: compressedImageMap['imageAfterFile'] || null
   };
 
-  const fInput = document.getElementById('imageAfterFile');
   showLoadingModal("🔧 กำลังบันทึกปิดงานซ่อม...", "ระบบกำลังประมวลผลรูปภาพและข้อมูล");
 
-  const send = async () => {
-    try {
-      const res = await apiPost('updateRepairStatus', data);
-      hideLoadingModal();
-      if (btn) btn.disabled = false;
-      showQuietAlert(res.message);
-      if (res.success) {
-        document.getElementById('techForm').reset();
-        document.getElementById('dynamicMaterialsList').innerHTML = '';
-        removeImagePreview('preview_tech_after_box', 'preview_tech_after', 'imageAfterFile');
-        loadMarkers();
-        closeModal();
-      }
-    } catch (err) {
-      hideLoadingModal();
-      if (btn) btn.disabled = false;
-      showQuietAlert("❌ เกิดข้อผิดพลาด: " + err.toString());
+  try {
+    const res = await apiPost('updateRepairStatus', data);
+    hideLoadingModal();
+    if (btn) btn.disabled = false;
+    showQuietAlert(res.message);
+    if (res.success) {
+      document.getElementById('techForm').reset();
+      document.getElementById('dynamicMaterialsList').innerHTML = '';
+      removeImagePreview('preview_tech_after_box', 'preview_tech_after', ['imageAfterCapture', 'imageAfterFile']);
+      loadMarkers();
+      closeModal();
     }
-  };
-
-  if (!data.imageAfter && fInput.files.length > 0) {
-    compressImage(fInput.files[0], b64 => {
-      data.imageAfter = { base64: b64, name: fInput.files[0].name, type: "image/jpeg" };
-      send();
-    });
-  } else {
-    send();
+  } catch (err) {
+    hideLoadingModal();
+    if (btn) btn.disabled = false;
+    showQuietAlert("❌ เกิดข้อผิดพลาด: " + err.toString());
   }
 }
 
@@ -869,7 +858,12 @@ function openAddAssetModal() {
   }
 }
 
-function closeAddAssetModal() { document.getElementById('addAssetModal')?.classList.add('hidden'); document.getElementById('addEquipmentForm').reset(); }
+function closeAddAssetModal() { 
+  document.getElementById('addAssetModal')?.classList.add('hidden'); 
+  document.getElementById('addEquipmentForm').reset(); 
+  removeImagePreview('preview_add_image_box', 'preview_add_image', ['addImageCapture', 'addImageFile']);
+  removeImagePreview('preview_add_qr_box', 'preview_add_qr', ['addQrCapture', 'addQrFile']);
+}
 
 function triggerEditAsset() {
   if (!currentActiveItemRaw) return;
@@ -886,7 +880,11 @@ function triggerEditAsset() {
   document.getElementById('editAssetModal')?.classList.remove('hidden');
 }
 
-function closeEditAssetModal() { document.getElementById('editAssetModal')?.classList.add('hidden'); }
+function closeEditAssetModal() { 
+  document.getElementById('editAssetModal')?.classList.add('hidden'); 
+  removeImagePreview('preview_edit_image_box', 'preview_edit_image', ['editImageCapture', 'editImageFile']);
+  removeImagePreview('preview_edit_qr_box', 'preview_edit_qr', ['editQrCapture', 'editQrFile']);
+}
 
 async function handleFormSubmit(e) {
   e.preventDefault();
@@ -899,43 +897,23 @@ async function handleFormSubmit(e) {
     type: form.type.value, assetNo: form.assetNo.value, name: form.name.value,
     department: form.department.value, location: form.location.value,
     lat: form.lat.value, lng: form.lng.value, status: form.status.value,
-    note: form.note.value || '', imageFile: null, qrCodeFile: null
+    note: form.note.value || '', 
+    imageFile: compressedImageMap['addImageFile'] || null, 
+    qrCodeFile: compressedImageMap['addQrFile'] || null
   };
 
-  const proceed = async () => {
-    try {
-      const res = await apiPost('saveEquipment', data);
-      btn.disabled = false;
-      btn.innerText = "บันทึกข้อมูลเข้าฐานระบบ";
-      showQuietAlert(res.message);
-      if (res.success) { closeAddAssetModal(); loadMarkers(); }
-    } catch (err) {
-      btn.disabled = false;
-      showQuietAlert("❌ บันทึกล้มเหลว");
+  try {
+    const res = await apiPost('saveEquipment', data);
+    btn.disabled = false;
+    btn.innerText = "บันทึกข้อมูลเข้าฐานระบบ";
+    showQuietAlert(res.message);
+    if (res.success) { 
+      closeAddAssetModal(); 
+      loadMarkers(); 
     }
-  };
-
-  if (capturedBlobMap['imageFile']) data.imageFile = capturedBlobMap['imageFile'];
-  if (capturedBlobMap['qrCodeFile']) data.qrCodeFile = capturedBlobMap['qrCodeFile'];
-
-  const fInput = document.getElementById('imageFile'), qInput = document.getElementById('qrCodeFile');
-  if (!data.imageFile && fInput.files.length > 0) {
-    compressImage(fInput.files[0], b64 => {
-      data.imageFile = { base64: b64, name: fInput.files[0].name, type: "image/jpeg" };
-      if (!data.qrCodeFile && qInput.files.length > 0) {
-        compressImage(qInput.files[0], qb64 => {
-          data.qrCodeFile = { base64: qb64, name: qInput.files[0].name, type: "image/jpeg" };
-          proceed();
-        });
-      } else { proceed(); }
-    });
-  } else if (!data.qrCodeFile && qInput.files.length > 0) {
-    compressImage(qInput.files[0], qb64 => {
-      data.qrCodeFile = { base64: qb64, name: qInput.files[0].name, type: "image/jpeg" };
-      proceed();
-    });
-  } else {
-    proceed();
+  } catch (err) {
+    btn.disabled = false;
+    showQuietAlert("❌ บันทึกล้มเหลว");
   }
 }
 
@@ -956,43 +934,23 @@ async function handleEditFormSubmit(e) {
     lat: document.getElementById('edit_lat').value,
     lng: document.getElementById('edit_lng').value,
     note: document.getElementById('edit_note').value,
-    imageFile: null, qrCodeFile: null
+    imageFile: compressedImageMap['editImageFile'] || null, 
+    qrCodeFile: compressedImageMap['editQrFile'] || null
   };
 
-  const proceed = async () => {
-    try {
-      const res = await apiPost('updateEquipment', sendData);
-      btn.disabled = false;
-      btn.innerText = "💾 บันทึกแก้ไขโครงสร้างข้อมูล";
-      showQuietAlert(res.message);
-      if (res.success) { closeEditAssetModal(); closeModal(); loadMarkers(); }
-    } catch(err) {
-      btn.disabled = false;
-      showQuietAlert("❌ แก้ไขล้มเหลว");
+  try {
+    const res = await apiPost('updateEquipment', sendData);
+    btn.disabled = false;
+    btn.innerText = "💾 บันทึกแก้ไขโครงสร้างข้อมูล";
+    showQuietAlert(res.message);
+    if (res.success) { 
+      closeEditAssetModal(); 
+      closeModal(); 
+      loadMarkers(); 
     }
-  };
-
-  if (capturedBlobMap['editImageFile']) sendData.imageFile = capturedBlobMap['editImageFile'];
-  if (capturedBlobMap['editQrCodeFile']) sendData.qrCodeFile = capturedBlobMap['editQrCodeFile'];
-
-  const imgInput = document.getElementById('editImageFile'), qrInput = document.getElementById('editQrCodeFile');
-  if (!sendData.imageFile && imgInput.files.length > 0) {
-    compressImage(imgInput.files[0], b64 => {
-      sendData.imageFile = { base64: b64, name: imgInput.files[0].name, type: "image/jpeg" };
-      if (!sendData.qrCodeFile && qrInput.files.length > 0) {
-        compressImage(qrInput.files[0], qb64 => {
-          sendData.qrCodeFile = { base64: qb64, name: qrInput.files[0].name, type: "image/jpeg" };
-          proceed();
-        });
-      } else { proceed(); }
-    });
-  } else if (!sendData.qrCodeFile && qrInput.files.length > 0) {
-    compressImage(qrInput.files[0], qb64 => {
-      sendData.qrCodeFile = { base64: qb64, name: qrInput.files[0].name, type: "image/jpeg" };
-      proceed();
-    });
-  } else {
-    proceed();
+  } catch(err) {
+    btn.disabled = false;
+    showQuietAlert("❌ แก้ไขล้มเหลว");
   }
 }
 
@@ -1002,6 +960,52 @@ function getCurrentLocation() {
       document.getElementById('formLat').value = p.coords.latitude.toFixed(6);
       document.getElementById('formLng').value = p.coords.longitude.toFixed(6);
       showQuietAlert("🎯 ดึงพิกัดดาวเทียมสำเร็จ");
+    });
+  }
+}
+
+// ==========================================
+// 📷 Native Mobile Camera & Image Handling
+// ==========================================
+function handleNativeImage(input, previewImgId, companionInputId) {
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    
+    // บีบอัดรูปภาพทันที
+    compressImage(file, base64 => {
+      const previewEl = document.getElementById(previewImgId);
+      const previewBox = document.getElementById(previewImgId + '_box');
+      if (previewEl && previewBox) {
+        previewEl.src = base64;
+        previewBox.classList.remove('hidden');
+      }
+
+      // บันทึกลง Map โดยอ้างอิงจากคีย์กลาง
+      const key = input.id.includes('Capture') ? input.id.replace('Capture', 'File') : input.id;
+      compressedImageMap[key] = {
+        base64: base64,
+        name: file.name || `photo_${Date.now()}.jpg`,
+        type: "image/jpeg"
+      };
+
+      // ล้างค่าใน input คู่ขนานเพื่อไม่ให้ส่งไฟล์ซ้ำ
+      const companion = document.getElementById(companionInputId);
+      if (companion) companion.value = '';
+    });
+  }
+}
+
+function removeImagePreview(boxId, imgId, inputIds) {
+  document.getElementById(boxId)?.classList.add('hidden');
+  const img = document.getElementById(imgId);
+  if (img) img.src = '';
+  
+  if (Array.isArray(inputIds)) {
+    inputIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+      const key = id.includes('Capture') ? id.replace('Capture', 'File') : id;
+      delete compressedImageMap[key];
     });
   }
 }
@@ -1022,111 +1026,6 @@ function compressImage(file, callback) {
       callback(canvas.toDataURL('image/jpeg', 0.7));
     };
   };
-}
-
-// ==========================================
-// 📷 Web Camera & Image Capture Engine
-// ==========================================
-let cameraStream = null;
-let currentCameraFacing = 'environment';
-let targetPreviewImgId = '';
-let targetFileInputId = '';
-let capturedBlobMap = {};
-
-async function openCameraModal(previewId, fileInputId) {
-  targetPreviewImgId = previewId;
-  targetFileInputId = fileInputId;
-  const modal = document.getElementById('cameraModal');
-  modal.classList.remove('hidden');
-  await startCameraStream();
-}
-
-async function startCameraStream() {
-  const video = document.getElementById('cameraVideo');
-  if (cameraStream) {
-    cameraStream.getTracks().forEach(track => track.stop());
-  }
-
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: currentCameraFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
-    });
-    video.srcObject = cameraStream;
-  } catch (err) {
-    console.warn("ไม่สามารถเปิดกล้องได้:", err);
-    showQuietAlert("⚠️ ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์การใช้กล้อง หรือเลือกไฟล์แทน");
-    closeCameraModal();
-    document.getElementById(targetFileInputId)?.click();
-  }
-}
-
-function switchCameraFacing() {
-  currentCameraFacing = (currentCameraFacing === 'environment') ? 'user' : 'environment';
-  startCameraStream();
-}
-
-function capturePhoto() {
-  const video = document.getElementById('cameraVideo');
-  const canvas = document.getElementById('cameraCanvas');
-  if (!video || !canvas) return;
-
-  canvas.width = video.videoWidth || 640;
-  canvas.height = video.videoHeight || 480;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-  const base64Img = canvas.toDataURL('image/jpeg', 0.75);
-
-  const previewEl = document.getElementById(targetPreviewImgId);
-  const previewBox = document.getElementById(targetPreviewImgId + '_box');
-  if (previewEl && previewBox) {
-    previewEl.src = base64Img;
-    previewBox.classList.remove('hidden');
-  }
-
-  capturedBlobMap[targetFileInputId] = {
-    base64: base64Img,
-    name: "capture_" + Date.now() + ".jpg",
-    type: "image/jpeg"
-  };
-
-  closeCameraModal();
-  showQuietAlert("📸 บันทึกภาพถ่ายเรียบร้อย");
-}
-
-function closeCameraModal() {
-  const modal = document.getElementById('cameraModal');
-  modal.classList.add('hidden');
-  if (cameraStream) {
-    cameraStream.getTracks().forEach(track => track.stop());
-    cameraStream = null;
-  }
-}
-
-function previewImageFromFile(input, previewImgId) {
-  if (input.files && input.files[0]) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const previewEl = document.getElementById(previewImgId);
-      const previewBox = document.getElementById(previewImgId + '_box');
-      if (previewEl && previewBox) {
-        previewEl.src = e.target.result;
-        previewBox.classList.remove('hidden');
-      }
-      delete capturedBlobMap[input.id];
-    };
-    reader.readAsDataURL(input.files[0]);
-  }
-}
-
-function removeImagePreview(boxId, imgId, inputId) {
-  document.getElementById(boxId)?.classList.add('hidden');
-  const img = document.getElementById(imgId);
-  if (img) img.src = '';
-  const input = document.getElementById(inputId);
-  if (input) input.value = '';
-  delete capturedBlobMap[inputId];
 }
 
 // ==========================================
