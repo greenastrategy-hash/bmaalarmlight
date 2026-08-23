@@ -16,12 +16,27 @@ window.onload = function() {
 // 🌐 API Helper Functions (Fetch แทน google.script.run)
 // ==========================================
 async function apiGet(action, params = {}) {
-  const url = new URL(API_BASE_URL);
-  url.searchParams.append('action', action);
-  Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
-  
-  const response = await fetch(url.toString());
-  return await response.json();
+  try {
+    const url = new URL(API_BASE_URL);
+    url.searchParams.append('action', action);
+    Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    
+    // เพิ่ม redirect: 'follow' และโหมด cors
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      mode: 'cors',
+      redirect: 'follow'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP status ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (err) {
+    console.error("API GET Error:", err);
+    throw err;
+  }
 }
 
 async function apiPost(action, data = {}) {
