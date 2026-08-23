@@ -1,0 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
+
+body {
+  font-family: 'Kanit', sans-serif;
+}
+
+#map {
+  height: 580px;
+  width: 100%;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.quiet-alert {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background-color: #065f46;
+  color: #f0fdf4;
+  padding: 12px 20px;
+  border-radius: 12px;
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.quiet-alert.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.custom-numbered-icon {
+  background: transparent;
+  border: none;
+}
