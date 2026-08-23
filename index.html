@@ -4,15 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบบริหารจัดการไฟฟ้าส่องสว่าง</title>
-
-  <!-- Tailwind & Icons -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💡</text></svg>">
+
+  <!-- Tailwind & Leaflet & Icons -->
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
-  
   <link rel="stylesheet" href="./style.css">
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased flex flex-col min-h-screen">
@@ -53,7 +52,8 @@
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <h2 class="text-xs font-bold text-slate-900 flex items-center gap-1"><i class="ph-bold ph-map-trifold text-base text-emerald-700"></i> แผนที่ระบบพิกัดเสาไฟ</h2>
         <div class="flex flex-wrap gap-1.5 w-full sm:w-auto">
-          <select id="departmentFilter" onchange="applyFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none"></select>
+          <!-- 🌟 ตัวกรองไดนามิก: เปลี่ยนหน่วยงานแล้วจะสั่งอัปเดตสถานที่ทันที -->
+          <select id="departmentFilter" onchange="onDepartmentFilterChange()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none"></select>
           <select id="locationFilter" onchange="applyFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none"></select>
           <select id="statusFilter" onchange="applyFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-bold text-slate-700 outline-none">
             <option value="all">🔍 ทุกสถานะ (ปกติ/ชำรุด)</option>
@@ -106,7 +106,8 @@
           </div>
           <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
             <input type="text" id="successSearchInput" oninput="applySuccessFilters()" placeholder="🔍 ค้นหา ID / ช่าง / รายการซ่อม..." class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none flex-1 lg:flex-initial lg:w-48 focus:bg-white focus:border-emerald-500 transition-colors">
-            <select id="successDeptFilter" onchange="applySuccessFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none max-w-[150px]"></select>
+            <!-- 🌟 ตัวกรองไดนามิกประจำตารางซ่อมเสร็จ -->
+            <select id="successDeptFilter" onchange="onSuccessDeptFilterChange()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none max-w-[150px]"></select>
             <select id="successLocFilter" onchange="applySuccessFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none max-w-[150px]"></select>
             <span id="successCountBadge" class="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full whitespace-nowrap">0 รายการ</span>
             <button onclick="exportSuccessCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 flex items-center gap-1 cursor-pointer transition-colors">
@@ -351,7 +352,8 @@
                 </div>
                 
                 <div>
-                  <label class="block text-slate-600 font-bold mb-1 text-[11px]">แนบหลักฐานภาพถ่ายเสร็จสิ้นภารกิจหน้างาน</label>
+                  <label class="block text-slate-600 font-bold mb-1 text-[11px]">📷 แนบหลักฐานภาพถ่าย / ถ่ายภาพปิดงานซ่อม</label>
+                  <!-- 🌟 รองรับทั้งการถ่ายรูปสดจากกล้อง หรือเลือกไฟล์รูปจากเครื่อง -->
                   <input type="file" id="imageAfterFile" accept="image/*" class="w-full text-xs text-slate-600 mt-0.5 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[11px] file:font-bold file:bg-amber-100 file:text-amber-800 hover:file:bg-amber-200 cursor-pointer">
                 </div>
                 
@@ -446,11 +448,13 @@
           <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-images text-emerald-600 text-base"></i> 4. อัปโหลดคลังไฟล์หลักฐานภาพถ่าย</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-slate-500 font-medium mb-1">📷 ภาพถ่ายจุดติดตั้งเสาไฟหลัก</label>
+              <label class="block text-slate-500 font-medium mb-1">📷 ภาพถ่ายจุดติดตั้งเสาไฟ (ถ่ายรูป/เลือกไฟล์)</label>
+              <!-- 🌟 รองรับกล้องถ่ายสดและเลือกไฟล์ -->
               <input type="file" id="imageFile" accept="image/*" class="w-full text-slate-600 mt-1 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[11px] file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer">
             </div>
             <div>
-              <label class="block text-slate-500 font-medium mb-1">🔗 ไฟล์ภาพ QR Code รายละเอียด</label>
+              <label class="block text-slate-500 font-medium mb-1">🔗 ไฟล์ภาพ QR Code (ถ่ายรูป/เลือกไฟล์)</label>
+              <!-- 🌟 รองรับกล้องถ่ายสดและเลือกไฟล์ -->
               <input type="file" id="qrCodeFile" accept="image/*" class="w-full text-slate-600 mt-1 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[11px] file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer">
             </div>
           </div>
@@ -535,11 +539,13 @@
           <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-images text-slate-600 text-base"></i> 4. ปรับเปลี่ยนไฟล์ภาพมีเดียประกอบ</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-slate-500 font-medium mb-1">📷 อัปเดตภาพถ่ายใหม่</label>
+              <label class="block text-slate-500 font-medium mb-1">📷 ถ่ายภาพ/อัปเดตภาพใหม่</label>
+              <!-- 🌟 รองรับกล้องถ่ายสดและเลือกไฟล์ -->
               <input type="file" id="editImageFile" accept="image/*" class="w-full text-slate-600 mt-1 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[11px] file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer">
             </div>
             <div>
-              <label class="block text-slate-500 font-medium mb-1">🔗 อัปเดตภาพ QR Code ใหม่</label>
+              <label class="block text-slate-500 font-medium mb-1">🔗 ถ่ายภาพ/อัปเดตภาพ QR Code ใหม่</label>
+              <!-- 🌟 รองรับกล้องถ่ายสดและเลือกไฟล์ -->
               <input type="file" id="editQrCodeFile" accept="image/*" class="w-full text-slate-600 mt-1 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[11px] file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer">
             </div>
           </div>
