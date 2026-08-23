@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบบริหารจัดการไฟฟ้าส่องสว่าง</title>
+
+  <!-- Tailwind & Icons -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased flex flex-col min-h-screen">
+
+  <div id="quietAlertContainer" class="quiet-alert">
+    <span class="text-emerald-400">⚡</span>
+    <span id="quietAlertText">ระบบพิกัดพร้อมทำงาน</span>
+  </div>
+
+  <nav class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-3.5 shadow-md flex justify-between items-center">
+    <div class="flex items-center space-x-2">
+      <span class="text-xl">💡</span>
+      <h1 class="text-md font-bold tracking-wide">ระบบบริหารจัดการไฟฟ้าส่องสว่าง</h1>
+    </div>
+    <div class="flex items-center gap-2">
+      <span id="authSuccessBadge" class="text-xs bg-emerald-50/20 text-emerald-100 px-2.5 py-1 rounded-md border border-emerald-500/30 hidden font-medium">● สิทธิ์เจ้าหน้าที่</span>
+      <span id="techSuccessBadge" class="text-xs bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-md border border-amber-500/30 hidden font-medium">● สิทธิ์ช่างซ่อมบำรุง</span>
+      <button id="addAssetBtnNav" onclick="openAddAssetModal()" class="bg-white text-emerald-700 hover:bg-emerald-50 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 hidden shadow-sm transition-colors cursor-pointer"><i class="ph-bold ph-plus-circle"></i> นำเข้าข้อมูล</button>
+      <button id="logoutBtn" onclick="handleLogout()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm hidden transition-all cursor-pointer">
+        <i class="ph-bold ph-sign-out"></i> ออกจากระบบ
+      </button>
+      <button id="authBtn" onclick="openAuthModal()" class="bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all cursor-pointer">🔑 ยืนยันรหัสเข้าใช้</button>
+    </div>
+  </nav>
+
+  <!-- Summary Cards -->
+  <div class="p-3 grid grid-cols-2 sm:grid-cols-5 gap-3">
+    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-cards"></i></div><div><p class="text-[10px] text-slate-400 font-medium">ครุภัณฑ์ทั้งหมด</p><p id="count_all" class="text-sm font-extrabold">0</p></div></div>
+    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-teal-50 text-teal-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-check-circle"></i></div><div><p class="text-[10px] text-slate-400 font-medium">สถานะปกติ</p><p id="count_normal" class="text-sm font-extrabold text-teal-600">0</p></div></div>
+    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-warning-circle"></i></div><div><p class="text-[10px] text-slate-400 font-medium">สถานะชำรุด</p><p id="count_damaged" class="text-sm font-extrabold text-rose-600">0</p></div></div>
+    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-hourglass-high"></i></div><div><p class="text-[10px] text-slate-400 font-medium">สถานะรอจำหน่าย</p><p id="count_pending" class="text-sm font-extrabold text-amber-600">0</p></div></div>
+    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-slate-100 text-slate-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-archive"></i></div><div><p class="text-[10px] text-slate-400 font-medium">สถานะจำหน่ายแล้ว</p><p id="count_disposed" class="text-sm font-extrabold text-slate-600">0</p></div></div>
+  </div>
+
+  <!-- Main Map & Tables Container -->
+  <div id="mainDashboardGrid" class="p-3 grid grid-cols-1 gap-4 transition-all duration-300 items-start">
+    <div id="mapWrapper" class="lg:col-span-12 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-3 transition-all duration-300">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+        <h2 class="text-xs font-bold text-slate-900 flex items-center gap-1"><i class="ph-bold ph-map-trifold text-base text-emerald-700"></i> แผนที่ระบบพิกัดเสาไฟ</h2>
+        <div class="flex flex-wrap gap-1.5 w-full sm:w-auto">
+          <select id="departmentFilter" onchange="applyFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none"></select>
+          <select id="locationFilter" onchange="applyFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none"></select>
+          <select id="statusFilter" onchange="applyFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-bold text-slate-700 outline-none">
+            <option value="all">🔍 ทุกสถานะ (ปกติ/ชำรุด)</option>
+            <option value="ชำรุด" selected>🔴 ชำรุด (Default)</option>
+            <option value="ปกติ">🟢 ปกติ</option>
+            <option value="รอจำหน่าย">⏳ รอจำหน่าย</option>
+            <option value="จำหน่ายแล้ว">📦 จำหน่ายแล้ว</option>
+          </select>
+        </div>
+      </div>
+      <div class="relative">
+        <div id="map" class="rounded-xl overflow-hidden border"></div>
+        <button type="button" onclick="resetMapToDefaultView()" title="โฟกัสกลับจุดเริ่มต้น" 
+                class="absolute top-3 right-3 z-[1000] bg-white hover:bg-slate-50 text-slate-700 hover:text-emerald-700 w-9 h-9 rounded-xl shadow-md border border-slate-200/80 flex items-center justify-center transition-all cursor-pointer group">
+          <i class="ph-bold ph-house-line text-lg group-hover:scale-110 transition-transform"></i>
+        </button>
+      </div>
+    </div>
+
+    <div id="tablesWrapper" class="hidden space-y-4 transition-all duration-300 min-w-0">
+      <!-- Damaged Assets Table -->
+      <div id="damagedAssetsContainer" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hidden animate-fade-in">
+        <div class="flex justify-between items-center mb-2">
+          <h3 class="text-xs font-bold text-rose-800">⚠️ รายการงานชำรุดคงค้างดำเนินการซ่อมแซมบำรุงรักษา</h3>
+          <button onclick="exportDamagedCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-slate-200 flex items-center gap-1 cursor-pointer transition-colors">
+            <i class="ph-bold ph-file-csv text-sm text-rose-700"></i> Export CSV
+          </button>
+        </div>
+        <div class="overflow-x-auto border rounded-xl">
+          <table class="min-w-full text-xs text-left">
+            <thead class="bg-slate-50 text-slate-500 border-b">
+              <tr>
+                <th class="p-2">ID</th>
+                <th class="p-2">ชื่อครุภัณฑ์/เลขทะเบียน</th>
+                <th class="p-2">หน่วยงาน/ที่ตั้ง</th>
+                <th class="p-2 text-center">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="damagedAssetsTableBody" class="divide-y"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Success Table -->
+      <div id="successAssetsContainer" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hidden animate-fade-in">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-2 mb-3">
+          <div>
+            <h3 class="text-xs font-bold text-emerald-800">📊 รายการที่ซ่อมบำรุงเสร็จสิ้นแล้ว</h3>
+            <p class="text-[10px] text-slate-400">ประวัติและไทม์ไลน์การปิดงานซ่อมบำรุงรักษาโดยช่างเทคนิคสำเร็จ</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            <input type="text" id="successSearchInput" oninput="applySuccessFilters()" placeholder="🔍 ค้นหา ID / ช่าง / รายการซ่อม..." class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none flex-1 lg:flex-initial lg:w-48 focus:bg-white focus:border-emerald-500 transition-colors">
+            <select id="successDeptFilter" onchange="applySuccessFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none max-w-[150px]"></select>
+            <select id="successLocFilter" onchange="applySuccessFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none max-w-[150px]"></select>
+            <span id="successCountBadge" class="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full whitespace-nowrap">0 รายการ</span>
+            <button onclick="exportSuccessCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 flex items-center gap-1 cursor-pointer transition-colors">
+              <i class="ph-bold ph-file-csv text-sm text-emerald-700"></i> Export CSV
+            </button>
+          </div>
+        </div>
+        <div class="overflow-x-auto border rounded-xl mb-2">
+          <table class="min-w-full text-xs text-left">
+            <thead class="bg-slate-50 text-slate-500 border-b">
+              <tr>
+                <th class="p-2 text-center" width="14%">วันที่ / ใบงาน</th>
+                <th class="p-2 text-center" width="12%">ID ครุภัณฑ์</th>
+                <th class="p-2 text-center" width="11%">แจ้งซ่อมสะสม</th>
+                <th class="p-2" width="39%">รายการซ่อมบำรุง / สรุปผลการจัดการหน้างาน</th>
+                <th class="p-2 text-center" width="12%">หลักฐาน</th>
+                <th class="p-2 text-center" width="12%">ตรวจสอบ</th>
+              </tr>
+            </thead>
+            <tbody id="successAssetsTableBody" class="divide-y"></tbody>
+          </table>
+        </div>
+        <div class="flex justify-between items-center text-[11px] text-slate-500">
+          <span id="paginationInfo">หน้า 1 จาก 1</span>
+          <div class="flex gap-1">
+            <button onclick="changePage(-1)" id="prevPageBtn" class="bg-slate-100 p-1 rounded font-medium disabled:opacity-30 cursor-pointer">⏮️ ก่อนหน้า</button>
+            <button onclick="changePage(1)" id="nextPageBtn" class="bg-slate-100 p-1 rounded font-medium disabled:opacity-30 cursor-pointer">ถัดไป ⏭️</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Master Inventory Table -->
+      <div id="masterInventoryContainer" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 hidden animate-fade-in">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
+          <div>
+            <h3 class="text-xs font-bold text-slate-900">ตารางรายละเอียดทรัพย์สิน</h3>
+          </div>
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <input type="text" id="masterSearchInput" oninput="applyMasterSearch()" placeholder="🔍 ค้นหาข้อมูลครุภัณฑ์ทุกเงื่อนไข..." class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none flex-1 sm:flex-initial sm:w-64 focus:bg-white focus:border-emerald-500 transition-colors">
+            <span id="masterCountBadge" class="text-xs bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-full whitespace-nowrap">0 รายการ</span>
+            <button onclick="exportMasterCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 flex items-center gap-1 cursor-pointer transition-colors">
+              <i class="ph-bold ph-file-csv text-sm text-slate-700"></i> Export CSV
+            </button>
+          </div>
+        </div>
+        <div class="overflow-x-auto border rounded-xl shadow-2xs">
+          <table class="min-w-full text-xs text-left">
+            <thead class="bg-slate-50 text-slate-500 font-bold border-b">
+              <tr>
+                <th class="p-3 text-center" width="8%">ดัชนีทรัพย์สิน</th>
+                <th class="p-3" width="20%">ชื่อครุภัณฑ์ทรัพย์สิน</th>
+                <th class="p-3" width="14%">เลขทะเบียนทรัพย์สิน</th>
+                <th class="p-3" width="14%">หน่วยงานรับผิดชอบ</th>
+                <th class="p-3" width="14%">สถานที่ / ที่ตั้งหลัก</th>
+                <th class="p-3 text-center" width="10%">แจ้งซ่อมสะสม</th>
+                <th class="p-3 text-center" width="10%">สถานะ</th>
+                <th class="p-3 text-center" width="10%">ตรวจสอบ</th>
+              </tr>
+            </thead>
+            <tbody id="masterAssetsTableBody" class="divide-y text-slate-700"></tbody>
+          </table>
+        </div>
+        <div class="flex justify-between items-center text-xs pt-4 mt-2 border-t">
+          <span id="masterPaginationInfo" class="text-slate-500 font-medium">กำลังแสดงหน้า 1 จาก 1</span>
+          <div class="flex gap-1">
+            <button onclick="changeMasterPage(-1)" id="masterPrevBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-bold disabled:opacity-40 cursor-pointer">⏮️ หน้าก่อนหน้า</button>
+            <button onclick="changeMasterPage(1)" id="masterNextBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-bold disabled:opacity-40 cursor-pointer">ถัดไป ⏭️</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modals -->
+  <!-- Auth Modal -->
+  <div id="authModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[10001] hidden p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl relative">
+      <button onclick="closeAuthModal()" class="absolute top-3 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer">×</button>
+      <div class="text-center mb-4">
+        <span class="text-3xl">🔒</span>
+        <h3 class="text-md font-bold text-slate-900 mt-2">ยืนยันสิทธิ์เข้าใช้งาน</h3>
+      </div>
+      <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-3">
+        <input type="password" id="officerPassword" required placeholder="••••" class="w-full p-2.5 bg-slate-50 border rounded-xl text-center text-lg font-bold focus:outline-none focus:border-emerald-500">
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-2.5 rounded-xl text-xs cursor-pointer">ยืนยันรหัสผ่าน</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Loading Modal -->
+  <div id="loadingModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[99999] hidden flex flex-col items-center justify-center p-4 transition-all duration-300">
+    <div class="bg-white rounded-2xl p-6 shadow-2xl flex flex-col items-center justify-center max-w-sm w-full text-center border border-emerald-100 animate-fade-in">
+      <div class="relative w-16 h-16 mb-4 flex items-center justify-center">
+        <div class="absolute inset-0 rounded-full border-4 border-emerald-100"></div>
+        <div class="absolute inset-0 rounded-full border-4 border-emerald-600 border-t-transparent animate-spin"></div>
+        <i class="ph-bold ph-gear-six text-2xl text-emerald-600 animate-spin" style="animation-duration: 3s;"></i>
+      </div>
+      <h3 id="loadingModalTitle" class="text-base font-bold text-slate-800 mb-1">กำลังบันทึกข้อมูล...</h3>
+      <p id="loadingModalSub" class="text-xs text-slate-500 m-0">กรุณารอสักครู่ ระบบกำลังประมวลผลและส่งแจ้งเตือน</p>
+    </div>
+  </div>
+
+  <footer class="mt-auto bg-slate-900 text-slate-400 p-4 text-center text-xs border-t border-slate-800 tracking-wide w-full z-10">
+    © 2026 ส่วนยุทธศาสตร์พื้นที่สีเขียว สำนักงานบริหารจัดการพื้นที่สีเขียว สำนักสิ่งแวดล้อม
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
