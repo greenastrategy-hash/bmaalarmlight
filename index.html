@@ -12,7 +12,6 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   
-  <!-- Custom CSS -->
   <link rel="stylesheet" href="./style.css">
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased flex flex-col min-h-screen">
@@ -97,7 +96,7 @@
         </div>
       </div>
 
-      <!-- Success Table -->
+      <!-- Success Assets Table -->
       <div id="successAssetsContainer" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hidden animate-fade-in">
         <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-2 mb-3">
           <div>
@@ -180,7 +179,394 @@
     </div>
   </div>
 
-  <!-- Modals -->
+  <!-- Floating Index Button -->
+  <button type="button" onclick="openIndexModalWindow()" title="ดูดัชนีรหัสย่อสถานที่"
+        class="fixed bottom-6 left-6 z-[9998] bg-emerald-700 hover:bg-emerald-800 text-white w-12 h-12 rounded-full shadow-xl flex items-center justify-center transition-all cursor-pointer group">
+    <i class="ph-bold ph-info text-xl group-hover:scale-110 transition-transform"></i>
+  </button>
+
+  <!-- Index Modal -->
+  <div id="indexModalWindow" class="fixed inset-0 z-[10006] bg-black/50 backdrop-blur-xs hidden flex items-center justify-center p-4 animate-fade-in">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-4 sm:p-5 shadow-2xl relative mx-auto my-auto flex flex-col max-h-[78vh]">
+      <button onclick="closeIndexModalWindow()" class="absolute top-2 right-4 text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer">&times;</button>
+      <div class="mb-3 text-left">
+        <h4 class="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1">
+          <i class="ph-bold ph-info text-emerald-700 text-base"></i> ผังดัชนีรหัสอ้างอิงสถานที่
+        </h4>
+        <p class="text-[10px] text-slate-400">คลังรหัสย่อประจำพิกัดและชื่อสถานที่ตั้งหลักในโครงข่าย</p>
+      </div>
+      <div class="mb-2.5">
+        <input type="text" id="indexSearchInput" oninput="applyIndexSearch()" placeholder="🔍 ค้นหารหัสย่อ / ชื่อที่ตั้ง..." class="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 outline-none focus:bg-white focus:border-emerald-500 transition-colors">
+      </div>
+      <div class="overflow-y-auto border rounded-xl shadow-inner flex-1 max-h-[42vh]">
+        <table class="min-w-full text-xs text-left">
+          <thead class="bg-slate-50 text-slate-500 font-bold border-b sticky top-0 z-10 select-none">
+            <tr>
+              <th class="p-2.5 text-center border-r" width="35%">รหัสดัชนี</th>
+              <th class="p-2.5">ชื่อที่ตั้ง</th>
+            </tr>
+          </thead>
+          <tbody id="indexSheetTableBody" class="divide-y text-slate-700 bg-white">
+            <tr><td class="p-4 text-center text-slate-400 font-medium" colspan="2">⏳ กำลังโหลดข้อมูลดัชนี...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-3 text-right flex justify-between items-center text-[10px] text-slate-400">
+        <span>*คลิกดับเบิ้ลเพื่อคัดลอกรหัส</span>
+        <span id="indexCountBadge" class="bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full">0 รายการ</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Details Workspace Modal -->
+  <div id="detailsModal" class="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-xs hidden flex items-center justify-center p-2 sm:p-4 animate-fade-in">
+    <div class="bg-white rounded-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto p-5 sm:p-6 shadow-2xl relative mx-auto my-auto flex flex-col">
+      <button onclick="closeModal()" class="absolute top-3 right-4 text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer transition-colors">&times;</button>
+      
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3.5 mb-4 pr-8">
+        <div id="wsStatusBadge" class="flex items-center"></div>
+        <div class="flex items-center gap-2">
+          <button id="officerEditBtn" onclick="triggerEditAsset()" class="bg-slate-100 hover:bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 hidden transition-colors flex items-center gap-1 cursor-pointer">
+            <i class="ph-bold ph-note-pencil text-sm"></i> แก้ไขข้อมูล
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-5 text-left text-xs sm:text-sm">
+        <div class="md:col-span-5 space-y-4 flex flex-col justify-between">
+          <div class="space-y-4 w-full">
+            <div class="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+              <div class="bg-slate-100 px-3 py-2 border-b border-slate-200 font-bold text-slate-700 text-xs flex items-center gap-1">
+                <i class="ph-bold ph-camera text-base text-slate-500"></i> ภาพถ่ายจุดติดตั้งครุภัณฑ์ปัจจุบัน
+              </div>
+              <div class="min-h-[12rem] flex items-center justify-center relative bg-slate-100 shadow-inner p-2">
+                <img id="wsImg" src="" alt="Asset Snapshot" class="w-full h-auto max-h-[28rem] object-contain rounded-lg hidden">
+                <span id="wsNoImg" class="text-xs text-slate-400 font-medium flex items-center gap-1 py-12">📷 ไม่มีภาพถ่ายแนบประกอบในระบบ</span>
+              </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 p-4 rounded-xl shadow-2xs space-y-2">
+              <h3 id="wsTitle" class="text-base sm:text-lg font-bold text-slate-900 leading-tight"></h3>
+              <p id="wsMetaId" class="text-xs text-slate-500 font-medium border-b pb-2 mb-2"></p>
+              <div id="wsDetailsGrid" class="space-y-2 text-slate-600"></div>
+            </div>
+
+            <div class="bg-slate-50 border border-slate-200 p-3.5 rounded-xl shadow-2xs space-y-2.5">
+              <div class="flex justify-between items-center w-full border-b border-slate-200 pb-2">
+                <h5 class="font-bold text-slate-800 flex items-center gap-1 text-xs">
+                  <i class="ph-bold ph-qr-code text-base text-emerald-700"></i> QR Code รายละเอียดเพิ่มเติม
+                </h5>
+                <button id="wsDownloadQrBtn" type="button" onclick="downloadQRCode()" class="hidden bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-md flex items-center gap-0.5 transition-colors shadow-3xs cursor-pointer">
+                  <i class="ph-bold ph-download-simple text-xs"></i> บันทึกภาพ QR
+                </button>
+              </div>
+              <div class="bg-white p-2 rounded-lg border border-slate-200 w-full flex items-center justify-center min-h-[120px] relative shadow-inner">
+                <img id="wsUploadedQr" src="" alt="Uploaded QR Code" class="max-h-28 object-contain hidden">
+                <span id="wsNoQrUploaded" class="text-xs text-slate-400 font-medium flex items-center gap-1">❌ ไม่พบไฟล์รูปภาพ QR Code ในระบบ</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <a id="wsNavBtn" href="#" target="_blank" class="w-full bg-slate-100 hover:bg-sky-50 text-sky-700 hover:text-sky-800 border border-slate-200 hover:border-sky-200 p-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-2xs transition-all no-underline hidden text-xs sm:text-sm">
+              <i class="ph-bold ph-navigation-arrow text-sm"></i> เปิดแผนที่นำทาง
+            </a>
+            <a id="wsStreetViewBtn" href="#" target="_blank" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 p-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-2xs transition-all no-underline hidden text-xs sm:text-sm">
+              <i class="ph-bold ph-street-view text-base text-amber-600"></i>เปิด Street View 360°
+            </a>
+          </div>
+        </div>
+
+        <div class="md:col-span-7 flex flex-col space-y-4 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-5 border-slate-200 min-h-[450px]">
+          <div class="space-y-3">
+            <div id="actionButtonContainer">
+              <button id="btnActionToggle" onclick="toggleActionForm()" class="w-full font-bold p-2.5 rounded-xl text-xs sm:text-sm shadow-md transition-all block text-center cursor-pointer">
+                ⏳ กำลังตรวจสอบสถานะอุปกรณ์...
+              </button>
+            </div>
+
+            <!-- Repair Form Container -->
+            <div id="repairFormContainer" class="hidden bg-rose-50/50 p-4 rounded-xl border border-rose-200 space-y-2.5 shadow-2xs animate-fade-in">
+              <h5 class="font-bold text-rose-950 flex items-center gap-1 text-xs sm:text-sm border-b border-rose-200 pb-2">
+                <i class="ph-bold ph-wrench text-rose-700 text-base"></i> บันทึกรายงานส่งเรื่องแจ้งซ่อมแซมครุภัณฑ์
+              </h5>
+              <form id="repairForm" onsubmit="handleRepairSubmit(event)" class="space-y-2">
+                <input type="hidden" id="repairEquipId">
+                <div>
+                  <label class="block text-slate-500 font-medium mb-1 text-[11px]">ระบุอาการชำรุดเสียหายหน้างาน</label>
+                  <input type="text" id="repair_details" required placeholder="เช่น ไฟดับกระพริบ, ดวงโคมแตกชำรุด หรือเสาเอียง" class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-emerald-500">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-slate-500 font-medium mb-1 text-[11px]">ผู้รายงานแจ้งซ่อม</label>
+                    <input type="text" id="repair_reporter" required placeholder="ระบุชื่อผู้แจ้งซ่อม" class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-emerald-500">
+                  </div>
+                  <div>
+                    <label class="block text-slate-500 font-medium mb-1 text-[11px]">เบอร์โทรติดต่อ</label>
+                    <input type="tel" id="repair_phone" required placeholder="ระบุเบอร์โทรติดต่อด่วน" class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-emerald-500">
+                  </div>
+                </div>
+                <button type="submit" id="repairSubmitBtn" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold p-2.5 rounded-xl text-xs sm:text-sm transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1 mt-1">
+                  <i class="ph-bold ph-paper-plane text-base"></i> ส่งเรื่องแจ้งซ่อมเข้าสู่ระบบ
+                </button>
+              </form>
+            </div>
+
+            <!-- Technician Form Container -->
+            <div id="technicianFormContainer" class="hidden bg-amber-50/60 p-4 rounded-xl border border-amber-200 space-y-2.5 shadow-2xs animate-fade-in">
+              <h5 class="font-bold text-amber-950 flex items-center gap-1 text-xs sm:text-sm border-b border-amber-300 pb-2">
+                <i class="ph-bold ph-gear-six text-amber-700 text-base"></i> ใบงานช่างเทคนิค: บันทึกประวัติและปิดงานซ่อม
+              </h5>
+              <form id="techForm" onsubmit="handleTechSubmit(event)" class="space-y-2.5">
+                <input type="hidden" id="techRepairId">
+                <input type="hidden" id="techEquipId">
+                <div id="techRepairIdBadge" class="text-xs bg-amber-100 text-amber-800 font-bold px-2.5 py-1 rounded-lg border border-amber-300 inline-block mb-1 hidden"></div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-slate-600 font-bold mb-1 text-[11px]">ประเภทการดำเนินการ</label>
+                    <select id="techActionType" onchange="toggleTechActionFields()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-emerald-500 text-xs">
+                      <option value="ซ่อมแซมเอง">🔧 ซ่อมแซมเอง</option>
+                      <option value="ส่งประมาณราคา">📄 ส่งประมาณราคา</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-slate-600 font-bold mb-1 text-[11px]">ชื่อช่างผู้ดำเนินการ</label>
+                    <input type="text" id="techName" required placeholder="ระบุชื่อช่างผู้รับผิดชอบ" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500 text-xs">
+                  </div>
+                </div>
+                
+                <div>
+                  <label class="block text-slate-600 font-bold mb-1 text-[11px]">รายละเอียดผลดำเนินการซ่อมบำรุง</label>
+                  <input type="text" id="techDetails" required placeholder="ระบุอาการและผลการจัดการหน้างานอย่างละเอียด" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500 text-xs">
+                </div>
+                
+                <div id="techMaterialsWrapper" class="space-y-2 border p-3 rounded-xl bg-slate-100/80 border-slate-200 shadow-inner">
+                  <div class="flex justify-between items-center border-b pb-1.5 mb-1">
+                    <label class="block font-bold text-slate-700 text-[11px]">🛠️ รายการวัสดุอุปกรณ์ที่ใช้ดำเนินการ</label>
+                    <button type="button" onclick="addMaterialRow()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-0.5 rounded flex items-center gap-0.5 cursor-pointer shadow-3xs">+ เพิ่มวัสดุ</button>
+                  </div>
+                  <div id="dynamicMaterialsList" class="space-y-1.5"></div>
+                </div>
+                
+                <div>
+                  <label class="block text-slate-600 font-bold mb-1 text-[11px]">แนบหลักฐานภาพถ่ายเสร็จสิ้นภารกิจหน้างาน</label>
+                  <input type="file" id="imageAfterFile" accept="image/*" class="w-full text-xs text-slate-600 mt-0.5 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[11px] file:font-bold file:bg-amber-100 file:text-amber-800 hover:file:bg-amber-200 cursor-pointer">
+                </div>
+                
+                <button type="submit" id="techSubmitBtn" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-2.5 rounded-xl text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-1">
+                  <i class="ph-bold ph-check-square text-base"></i> บันทึกเสร็จสิ้นภารกิจและเปลี่ยนสถานะเป็นปกติ
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <div class="flex-1 flex flex-col min-h-[320px]">
+            <h4 class="font-bold text-slate-800 mb-2 flex items-center gap-1 text-xs sm:text-sm border-b pb-1.5">
+              <i class="ph-bold ph-clock-counter-clockwise text-emerald-700 text-base"></i> บันทึกไทม์ไลน์และประวัติการบำรุงรักษาย้อนหลัง
+            </h4>
+            <div id="wsRepairHistoryContainer" class="bg-slate-50 rounded-xl p-3.5 border border-slate-200 overflow-y-auto overflow-x-hidden flex-1 shadow-inner h-[380px] min-h-[380px]"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Asset Modal -->
+  <div id="addAssetModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[10002] hidden p-4 animate-fade-in">
+    <div class="bg-white rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto">
+      <button onclick="closeAddAssetModal()" class="absolute top-3 right-4 text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer">&times;</button>
+      <div class="flex items-center gap-2 border-b pb-3 mb-4">
+        <span class="text-xl">➕</span>
+        <h3 class="text-sm sm:text-base font-bold text-emerald-700">นำเข้าครุภัณฑ์ระบบผังโครงข่ายใหม่</h3>
+      </div>
+      <form id="addEquipmentForm" onsubmit="handleFormSubmit(event)" class="space-y-3.5 text-left text-xs">
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-3">
+          <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-cube text-emerald-600 text-base"></i> 1. ข้อมูลคุณลักษณะครุภัณฑ์หลัก</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">ประเภททรัพย์สิน</label>
+              <select name="type" required class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-emerald-500">
+                <option value="03 สิ่งก่อสร้าง">03 สิ่งก่อสร้าง</option>
+                <option value="06 ครุภัณฑ์ไฟฟ้าและวิทยุ">06 ครุภัณฑ์ไฟฟ้าและวิทยุ</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">เลขทะเบียนทรัพย์สิน</label>
+              <input type="text" name="assetNo" required placeholder="ระบุเลขรหัสทะเบียน" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+          </div>
+          <div>
+            <label class="block text-slate-500 font-medium mb-1">ชื่อทรัพย์สิน / ครุภัณฑ์</label>
+            <input type="text" name="name" required placeholder="เช่น เสาไฟฟ้าส่องสว่าง 3/2540" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+          </div>
+          <div>
+            <label class="block text-slate-500 font-medium mb-1">สถานะเริ่มต้นระบบ</label>
+            <select name="status" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-emerald-500">
+              <option value="ปกติ">🟢 ปกติ</option>
+              <option value="ชำรุด">🔴 ชำรุด</option>
+              <option value="รอจำหน่าย">⏳ รอจำหน่าย</option>
+              <option value="จำหน่ายแล้ว">📦 จำหน่ายแล้ว</option>
+            </select>
+          </div>
+        </div>
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-3">
+          <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-buildings text-emerald-600 text-base"></i> 2. หน่วยงานและพื้นที่จัดเก็บข้อมูล</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">หน่วยงานรับผิดชอบ</label>
+              <input type="text" id="add_department" name="department" required class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">ที่ตั้งสถานที่หลัก</label>
+              <input type="text" name="location" required placeholder="เช่น สวนสันติภาพ" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+          </div>
+        </div>
+        <div class="bg-emerald-50/40 p-3.5 border rounded-xl border-emerald-200 space-y-3">
+          <div class="flex justify-between items-center border-b border-emerald-200/60 pb-1.5 mb-1">
+            <h4 class="font-bold text-emerald-900 flex items-center gap-1 text-[13px]"><i class="ph-bold ph-map-pin-line text-emerald-700 text-base"></i> 3. พิกัดภูมิศาสตร์ติดตั้ง (GPS)</h4>
+            <button type="button" onclick="getCurrentLocation()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-md flex items-center gap-0.5 transition-colors shadow-3xs cursor-pointer">
+              <i class="ph-bold ph-crosshair text-xs"></i> ค้นหาด้วยดาวเทียม GPS
+            </button>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-emerald-800 font-medium mb-1">ละติจูด (Latitude)</label>
+              <input type="number" step="any" name="lat" id="formLat" required placeholder="13.xxxxxx" class="w-full p-2 border border-slate-300 bg-white rounded-lg focus:outline-emerald-500">
+            </div>
+            <div>
+              <label class="block text-emerald-800 font-medium mb-1">ลองจิจูด (Longitude)</label>
+              <input type="number" step="any" name="lng" id="formLng" required placeholder="100.xxxxxx" class="w-full p-2 border border-slate-300 bg-white rounded-lg focus:outline-emerald-500">
+            </div>
+          </div>
+        </div>
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-3">
+          <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-images text-emerald-600 text-base"></i> 4. อัปโหลดคลังไฟล์หลักฐานภาพถ่าย</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">📷 ภาพถ่ายจุดติดตั้งเสาไฟหลัก</label>
+              <input type="file" id="imageFile" accept="image/*" class="w-full text-slate-600 mt-1 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[11px] file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer">
+            </div>
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">🔗 ไฟล์ภาพ QR Code รายละเอียด</label>
+              <input type="file" id="qrCodeFile" accept="image/*" class="w-full text-slate-600 mt-1 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[11px] file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer">
+            </div>
+          </div>
+        </div>
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-2">
+          <label class="block font-bold text-slate-700 flex items-center gap-1 text-[13px]"><i class="ph-bold ph-note text-emerald-600 text-base"></i> 5. บันทึกหมายเหตุเพิ่มเติม (Note)</label>
+          <textarea name="note" rows="2" placeholder="พิมพ์ระบุข้อมูลสภาวะแวดล้อมหน้างาน..." class="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-emerald-500"></textarea>
+        </div>
+        <button type="submit" id="addSubmitBtn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-2.5 rounded-xl text-xs sm:text-sm shadow-md transition-all mt-2 cursor-pointer flex items-center justify-center gap-1">
+          <i class="ph-bold ph-floppy-disk text-base"></i> บันทึกข้อมูลเข้าฐานระบบ
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Asset Modal -->
+  <div id="editAssetModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[10003] hidden p-4 animate-fade-in">
+    <div class="bg-white rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto">
+      <button onclick="closeEditAssetModal()" class="absolute top-3 right-4 text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer">&times;</button>
+      <div class="flex items-center gap-2 border-b pb-3 mb-4">
+        <span class="text-xl">📝</span>
+        <h3 class="text-sm sm:text-base font-bold text-slate-900">แก้ไขข้อมูลคุณลักษณะทะเบียนครุภัณฑ์</h3>
+      </div>
+      <form id="editEquipmentForm" onsubmit="handleEditFormSubmit(event)" class="space-y-3.5 text-left text-xs">
+        <input type="hidden" id="edit_id">
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-3">
+          <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-cube text-slate-600 text-base"></i> 1. ข้อมูลคุณลักษณะครุภัณฑ์หลัก</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">ประเภททรัพย์สิน</label>
+              <select id="edit_type" required class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-emerald-500">
+                <option value="03 สิ่งก่อสร้าง">03 สิ่งก่อสร้าง</option>
+                <option value="06 ครุภัณฑ์ไฟฟ้าและวิทยุ">06 ครุภัณฑ์ไฟฟ้าและวิทยุ</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">เลขทะเบียนทรัพย์สิน</label>
+              <input type="text" id="edit_assetNo" required class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+          </div>
+          <div>
+            <label class="block text-slate-500 font-medium mb-1">ชื่อทรัพย์สิน / ครุภัณฑ์</label>
+            <input type="text" id="edit_name" required class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+          </div>
+          <div>
+            <label class="block text-slate-500 font-medium mb-1">สถานะหลักอุปกรณ์ปัจจุบัน</label>
+            <select id="edit_status" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-emerald-500">
+              <option value="ปกติ">🟢 ปกติ</option>
+              <option value="ชำรุด">🔴 ชำรุด</option>
+              <option value="รอจำหน่าย">⏳ รอจำหน่าย</option>
+              <option value="จำหน่ายแล้ว">📦 จำหน่ายแล้ว</option>
+            </select>
+          </div>
+        </div>
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-3">
+          <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-buildings text-slate-600 text-base"></i> 2. หน่วยงานและพื้นที่จัดเก็บข้อมูล</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">หน่วยงานรับผิดชอบ</label>
+              <input type="text" id="edit_department" required class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">สถานที่ / ที่ตั้งติดตั้งหลัก</label>
+              <input type="text" id="edit_location" required class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+          </div>
+        </div>
+        <div class="bg-slate-50 p-3.5 border rounded-xl border-slate-200 space-y-3">
+          <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-map-pin text-slate-600 text-base"></i> 3. แก้ไขพิกัดภูมิศาสตร์จุดปักหมุด</h4>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">ละติจูด (Lat)</label>
+              <input type="number" step="any" id="edit_lat" required class="w-full p-2 border border-slate-300 bg-white rounded-lg focus:outline-emerald-500">
+            </div>
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">ลองจิจูด (Lng)</label>
+              <input type="number" step="any" id="edit_lng" required class="w-full p-2 border border-slate-300 bg-white rounded-lg focus:outline-emerald-500">
+            </div>
+          </div>
+        </div>
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-3">
+          <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-images text-slate-600 text-base"></i> 4. ปรับเปลี่ยนไฟล์ภาพมีเดียประกอบ</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">📷 อัปเดตภาพถ่ายใหม่</label>
+              <input type="file" id="editImageFile" accept="image/*" class="w-full text-slate-600 mt-1 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[11px] file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer">
+            </div>
+            <div>
+              <label class="block text-slate-500 font-medium mb-1">🔗 อัปเดตภาพ QR Code ใหม่</label>
+              <input type="file" id="editQrCodeFile" accept="image/*" class="w-full text-slate-600 mt-1 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[11px] file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer">
+            </div>
+          </div>
+        </div>
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-2">
+          <label class="block font-bold text-slate-700 flex items-center gap-1 text-[13px]"><i class="ph-bold ph-note text-slate-600 text-base"></i> 5. บันทึกหมายเหตุเพิ่มเติม (Note)</label>
+          <textarea id="edit_note" rows="2" placeholder="พิมพ์ระบุข้อมูลสภาวะแวดล้อมหน้างาน..." class="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-emerald-500"></textarea>
+        </div>
+        <button type="submit" id="editSubmitBtn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-2.5 rounded-xl text-xs sm:text-sm shadow-md transition-all mt-2 cursor-pointer flex items-center justify-center gap-1">
+          <i class="ph-bold ph-floppy-disk-back text-base"></i> 💾 บันทึกแก้ไขโครงสร้างข้อมูล
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Image Evidence Modal -->
+  <div id="imageModal" class="fixed inset-0 z-[10005] bg-black/70 backdrop-blur-xs hidden flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+    <div class="bg-white rounded-2xl w-full max-w-xl p-4 sm:p-5 shadow-2xl relative mx-auto my-auto flex flex-col">
+      <button onclick="closeImageModal()" class="absolute top-2 right-4 text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer">&times;</button>
+      <h4 class="text-xs sm:text-sm font-bold text-slate-800 mb-3 flex items-center gap-1">
+        <i class="ph-bold ph-image text-emerald-700 text-base"></i> ภาพถ่ายหลักฐานหลังดำเนินการซ่อมเสร็จสิ้น
+      </h4>
+      <div class="border rounded-xl overflow-hidden bg-slate-100 w-full max-h-[65vh] flex items-center justify-center shadow-inner">
+        <img id="modalTargetImg" src="" alt="Evidence Snapshot" class="max-w-full max-h-[65vh] object-contain">
+      </div>
+    </div>
+  </div>
+
   <!-- Auth Modal -->
   <div id="authModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[10001] hidden p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl relative">
@@ -213,7 +599,6 @@
     © 2026 ส่วนยุทธศาสตร์พื้นที่สีเขียว สำนักงานบริหารจัดการพื้นที่สีเขียว สำนักสิ่งแวดล้อม
   </footer>
 
-  <!-- Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
   <script src="./config.js"></script>
