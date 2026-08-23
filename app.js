@@ -79,30 +79,40 @@ function initMap() {
 
 async function loadMarkers(userCode) {
   if (userCode !== undefined) currentUserCode = userCode;
-  showQuietAlert("⏳ กำลังเชื่อมต่อฐานข้อมูลคลังครุภัณฑ์...");
+  console.log("🚀 กำลังส่งคำขอไปที่ API:", API_BASE_URL);
 
   try {
     const res = await apiGet('getEquipmentData', { userCode: currentUserCode });
-    if (res.success) {
+    console.log("📦 ข้อมูลที่ตอบกลับจาก Apps Script:", res);
+
+    if (res && res.success) {
       allData = processDataSequence(res.data || []);
+      console.log(`✅ โหลดข้อมูลสำเร็จ ${allData.length} รายการ`);
+      
       updateStatisticsCounters(allData);
       updateFilterDropdowns(allData);
-
-      const historyRes = await apiGet('getRepairHistory');
-      if (historyRes.success) {
-        globalReportCounts = {};
-        (historyRes.data || []).forEach(h => {
-          if (h.assetId) {
-            const id = h.assetId.toString().trim().toUpperCase();
-            globalReportCounts[id] = (globalReportCounts[id] || 0) + 1;
-          }
-        });
-      }
       applyFilters();
-      showQuietAlert("⚡ โหลดข้อมูลพิกัดเสร็จสมบูรณ์");
+
+      // โหลดประวัติงานซ่อมต่อเบื้องหลัง
+      apiGet('getRepairHistory').then(historyRes => {
+        if (historyRes && historyRes.success) {
+          globalReportCounts = {};
+          (historyRes.data || []).forEach(h => {
+            if (h.assetId) {
+              const id = h.assetId.toString().trim().toUpperCase();
+              globalReportCounts[id] = (globalReportCounts[id] || 0) + 1;
+            }
+          });
+          applyFilters();
+        }
+      });
+    } else {
+      console.error("❌ API ตอบกลับล้มเหลว:", res ? res.message : "ไม่มีข้อมูลตอบกลับ");
+      showQuietAlert("⚠️ ไม่สามารถดึงข้อมูลได้: " + (res ? res.message : "เกิดข้อผิดพลาด"));
     }
   } catch (err) {
-    showQuietAlert("❌ ดึงข้อมูลล้มเหลว: " + err.toString());
+    console.error("❌ Fetch Error:", err);
+    showQuietAlert("❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจสอบการตั้งค่าสิทธิ์ Apps Script");
   }
 }
 
