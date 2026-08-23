@@ -117,6 +117,7 @@ function drawBMAData(data, targetLocName) {
     return pointsCount <= 5;
   }
 
+  // 1. วาดเส้นขอบเขตและสีไฮไลต์ของแต่ละเขต (ด้านในโปร่งใสสว่าง)
   bmaDistrictsLayer = L.geoJSON(data, {
     filter: feature => !isTrashBox(feature),
     style: feature => {
@@ -125,23 +126,55 @@ function drawBMAData(data, targetLocName) {
       if (matchingDistrictName && dName.toString().includes(matchingDistrictName)) {
         return { color: '#059669', weight: 2.5, fillColor: '#34d399', fillOpacity: 0.15 };
       }
-      return { color: '#047857', weight: 1.2, fillColor: '#10b981', fillOpacity: 0.02 };
+      return { color: '#047857', weight: 1.2, fillColor: '#ffffff', fillOpacity: 0.0 };
+    },
+    onEachFeature: function(feature, layer) {
+      const props = feature.properties || {};
+      let districtName = props.dname || props.dist_th || '';
+      if (districtName) {
+        if (!districtName.includes('เขต')) districtName = 'เขต' + districtName;
+        layer.on('click', function(e) {
+          L.popup()
+            .setLatLng(e.latlng)
+            .setContent('<div style="font-family:\'Kanit\',sans-serif; font-size:14px; font-weight:bold; color:#065f46; padding:4px;">📍 ' + districtName + '</div>')
+            .openOn(map);
+        });
+      }
     }
   }).addTo(map);
 
-  const worldOuterRing = [[90, -180], [90, 180], [-90, -180], [-90, -180]];
+  // 2. สร้างม่านเงาดำบังพื้นที่ภายนอกกรุงเทพฯ (Hole Mask: วงนอกมืด - วงในกทม.เจาะรูสว่าง)
+  const worldOuterRing = [
+    [-90, -180],
+    [-90, 180],
+    [90, 180],
+    [90, -180]
+  ];
+  
   const maskRings = [worldOuterRing];
+
   data.features.forEach(feature => {
     if (isTrashBox(feature)) return;
     const geom = feature.geometry;
     if (geom.type === 'Polygon') {
-      geom.coordinates.forEach(ring => maskRings.push(ring.map(c => [c[1], c[0]])));
+      geom.coordinates.forEach(ring => {
+        maskRings.push(ring.map(c => [c[1], c[0]]));
+      });
     } else if (geom.type === 'MultiPolygon') {
-      geom.coordinates.forEach(polygon => polygon.forEach(ring => maskRings.push(ring.map(c => [c[1], c[0]]))));
+      geom.coordinates.forEach(polygon => {
+        polygon.forEach(ring => {
+          maskRings.push(ring.map(c => [c[1], c[0]]));
+        });
+      });
     }
   });
 
-  bmaMaskLayer = L.polygon(maskRings, { stroke: false, fillColor: '#0f172a', fillOpacity: 0.45, interactive: false }).addTo(map);
+  bmaMaskLayer = L.polygon(maskRings, {
+    stroke: false,
+    fillColor: '#0f172a',
+    fillOpacity: 0.5,
+    interactive: false
+  }).addTo(map);
 }
 
 // ==========================================
