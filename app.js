@@ -43,25 +43,51 @@ async function apiPost(action, data = {}) {
 }
 
 // ==========================================
-// 🗺️ Leaflet Map Initializer
+// 🗺️ Leaflet Map Initializer (ปรับปรุงชั้นดาวเทียมให้สบายตา คมชัด)
 // ==========================================
 function initMap() {
   try {
     const mapContainer = document.getElementById('map');
     if (!mapContainer || map) return;
 
+    // 1. แผนที่ถนนแบบ Clean Standard (Carto Voyager)
     const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20, attribution: '&copy; CartoDB'
-    });
-    const satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-      maxZoom: 20, attribution: '&copy; Google Maps'
+      maxZoom: 20,
+      attribution: '&copy; CartoDB'
     });
 
-    map = L.map('map', { center: [13.745, 100.62], zoom: 11, layers: [streetLayer] });
+    // 2.1 ชั้นภาพถ่ายดาวเทียมแบบคลีน (ลดความจัดจ้านของสี)
+    const satBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: '&copy; Esri World Imagery',
+      className: 'clean-satellite-tiles' // ผูกคลาสสำหรับปรับแต่งโทนสี
+    });
+
+    // 2.2 ชั้นเส้นทางถนน ซอย และชื่อสถานที่ภาษาไทยแบบคมชัด
+    const satLabels = L.tileLayer('https://mt1.google.com/vt/lyrs=h&hl=th&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      attribution: '&copy; Google Maps'
+    });
+
+    // 2.3 รวมเป็นชั้นดาวเทียมแบบไฮบริดคลีน (Clean Hybrid Satellite)
+    const cleanSatelliteLayer = L.layerGroup([satBase, satLabels]);
+
+    // สร้าง Map Object
+    map = L.map('map', {
+      center: [13.745, 100.62],
+      zoom: 11,
+      layers: [streetLayer]
+    });
+
     markersLayer = L.markerClusterGroup({ maxClusterRadius: 50, disableClusteringAtZoom: 17 });
     markersLayer.addTo(map);
 
-    L.control.layers({ "🗺️ แผนที่ถนน": streetLayer, "🛰️ ภาพดาวเทียม": satelliteLayer }, null, { position: 'topleft' }).addTo(map);
+    // กล่องสลับมุมมองแผนที่
+    L.control.layers({
+      "🗺️ แผนที่ถนน": streetLayer,
+      "🛰️ ภาพดาวเทียม": cleanSatelliteLayer
+    }, null, { position: 'topleft' }).addTo(map);
+
     setTimeout(() => { map.invalidateSize(); }, 300);
   } catch (err) {
     console.error("Map initialization failed:", err);
