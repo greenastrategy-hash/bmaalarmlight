@@ -1,14 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
 
+/* กำหนดฟอนต์หลักของระบบ */
 body {
   font-family: 'Kanit', sans-serif;
 }
 
+/* กำหนดความสูงเริ่มต้นของแผนที่ Leaflet */
 #map {
   height: 580px;
   width: 100%;
 }
 
+/* แอนิเมชัน Fade-in สำหรับ Modal และตารางข้อมูล */
 .animate-fade-in {
   animation: fadeIn 0.25s ease-out forwards;
 }
@@ -18,6 +21,7 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* กล่องแจ้งเตือนลอย (Quiet Alert Toast) */
 .quiet-alert {
   position: fixed;
   bottom: 24px;
@@ -44,12 +48,13 @@ body {
   transform: translateY(0);
 }
 
+/* ปรับแต่งหมุดหมายเลขบนแผนที่ให้อยู่ในรูปแบบแคปซูล */
 .custom-numbered-icon {
   background: transparent;
   border: none;
 }
 
-/* 🛰️ ปรับแต่งเลเยอร์ภาพถ่ายดาวเทียมให้สบายตา เรียบหรู */
+/* 🛰️ ปรับแต่งเลเยอร์ภาพถ่ายดาวเทียมให้สบายตา เรียบหรู ลดความจ้า */
 .clean-satellite-tiles {
   filter: brightness(0.88) contrast(1.08) saturate(0.85);
 }
@@ -57,20 +62,4 @@ body {
 /* 🏷️ ปรับป้ายชื่อถนนและเขตให้อ่านง่าย คมชัด บนพื้นหลังดาวเทียม */
 .clean-satellite-labels {
   filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.85)) contrast(1.15);
-}
-
-/* 🗺️ เลเยอร์ภาพถ่ายดาวเทียมความคมชัดสูง */
-.clean-satellite-tiles {
-  filter: brightness(0.88) contrast(1.08) saturate(0.85);
-}
-
-.clean-satellite-labels {
-  filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.85)) contrast(1.15);
-}
-
-/* 🖼️ สไตล์รองรับการหมุน/ปรับสัดส่วนภาพซ้อนบนแผนที่ */
-.leaflet-image-layer.custom-transform-overlay {
-  transform-origin: center center;
-  transition: opacity 0.15s ease, filter 0.15s ease;
-  pointer-events: auto;
 }
