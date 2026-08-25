@@ -7,7 +7,52 @@ let masterDisplayList = [];
 let globalReportCounts = {};
 let currentUserCode = "";
 let indexRawData = [], indexFilteredData = [], indexHeaders = [];
-let compressedImageMap = {}; // คลังเก็บ Base64 ของรูปภาพที่เลือก/ถ่าย
+let compressedImageMap = {}; 
+
+// 🌟 ตัวแปรจัดการ 5 ธีมสีหมุด
+let currentPinTheme = "emerald";
+const PIN_PALETTES = {
+  emerald: {
+    normal:   { border: '#10b981', bg: '#ecfdf5', text: '#047857' },
+    damaged:  { border: '#ef4444', bg: '#fef2f2', text: '#dc2626' },
+    pending:  { border: '#f59e0b', bg: '#fffbeb', text: '#b45309' },
+    disposed: { border: '#6b7280', bg: '#f3f4f6', text: '#374151' }
+  },
+  cyber: {
+    normal:   { border: '#06b6d4', bg: '#ecfeff', text: '#0891b2' },
+    damaged:  { border: '#f43f5e', bg: '#fff1f2', text: '#e11d48' },
+    pending:  { border: '#eab308', bg: '#fefce8', text: '#ca8a04' },
+    disposed: { border: '#8b5cf6', bg: '#f5f3ff', text: '#7c3aed' }
+  },
+  sunset: {
+    normal:   { border: '#f97316', bg: '#fff7ed', text: '#c2410c' },
+    damaged:  { border: '#b91c1c', bg: '#fef2f2', text: '#991b1b' },
+    pending:  { border: '#d97706', bg: '#fefce8', text: '#b45309' },
+    disposed: { border: '#78716c', bg: '#f5f5f4', text: '#44403c' }
+  },
+  purple: {
+    normal:   { border: '#8b5cf6', bg: '#f5f3ff', text: '#6d28d9' },
+    damaged:  { border: '#ec4899', bg: '#fdf2f8', text: '#be185d' },
+    pending:  { border: '#fb923c', bg: '#fff7ed', text: '#c2410c' },
+    disposed: { border: '#475569', bg: '#f1f5f9', text: '#334155' }
+  },
+  ocean: {
+    normal:   { border: '#2563eb', bg: '#eff6ff', text: '#1d4ed8' },
+    damaged:  { border: '#ea580c', bg: '#fff7ed', text: '#c2410c' },
+    pending:  { border: '#eab308', bg: '#fefce8', text: '#a16207' },
+    disposed: { border: '#64748b', bg: '#f8fafc', text: '#334155' }
+  }
+};
+
+// 🌟 ตัวแปรจัดการภาพซ้อนบนแผนที่ (Image Overlay)
+let mapImageOverlay = null;
+let overlayBaseData = {
+  imgUrl: '',
+  centerLat: 13.745,
+  centerLng: 100.62,
+  baseLatSpan: 0.008,
+  baseLngSpan: 0.012
+};
 
 // ==========================================
 // 🚀 Lifecycle Initializer
@@ -43,57 +88,46 @@ async function apiPost(action, data = {}) {
 }
 
 // ==========================================
-// 🗺️ Leaflet Map Initializer (Minimal & Ultra-Clean Satellite)
+// 🗺️ Leaflet Map Initializer
 // ==========================================
 function initMap() {
   try {
     const mapContainer = document.getElementById('map');
     if (!mapContainer || map) return;
 
-    // 1. แผนที่ถนนแบบ Clean Standard (Carto Voyager)
     const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20,
-      attribution: '&copy; CartoDB'
+      maxZoom: 20, attribution: '&copy; CartoDB'
     });
 
-    // 2.1 ชั้นภาพถ่ายดาวเทียมความละเอียดสูง (Esri World Imagery)
     const satBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      attribution: '&copy; Esri World Imagery',
-      className: 'clean-satellite-tiles'
+      maxZoom: 19, attribution: '&copy; Esri World Imagery', className: 'clean-satellite-tiles'
     });
-
-    // 2.2 ชั้นโครงข่ายถนนเฉพาะเส้นทางหลัก (Esri Transportation / Clean Roads)
     const satRoads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      opacity: 0.75
+      maxZoom: 19, opacity: 0.75
     });
-
-    // 2.3 ชั้นป้ายชื่อเฉพาะ "ถนนและเขตสำคัญ" (Carto Clean Labels Only - ตัดร้านค้าและสถานที่ย่อยออกเด็ดขาด)
     const satLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20,
-      subdomains: 'abcd',
-      className: 'clean-satellite-labels'
+      maxZoom: 20, subdomains: 'abcd', className: 'clean-satellite-labels'
     });
-
-    // 2.4 รวมเป็นชั้นดาวเทียมแบบมินิมอล สะอาดตา ไร้สิ่งรบกวน
     const cleanSatelliteLayer = L.layerGroup([satBase, satRoads, satLabels]);
 
-    // สร้าง Map Object
-    map = L.map('map', {
-      center: [13.745, 100.62],
-      zoom: 11,
-      layers: [streetLayer]
-    });
-
+    map = L.map('map', { center: [13.745, 100.62], zoom: 11, layers: [streetLayer] });
     markersLayer = L.markerClusterGroup({ maxClusterRadius: 50, disableClusteringAtZoom: 17 });
     markersLayer.addTo(map);
 
-    // กล่องสลับมุมมองแผนที่
     L.control.layers({
       "🗺️ แผนที่ถนน": streetLayer,
-      "🛰️ ภาพดาวเทียม (Minimal)": cleanSatelliteLayer
+      "🛰️ ภาพดาวเทียม (Clean)": cleanSatelliteLayer
     }, null, { position: 'topleft' }).addTo(map);
+
+    // ดักคลิกแผนที่เพื่อเลือกตำแหน่งวางภาพซ้อนได้
+    map.on('contextmenu', function(e) {
+      if (mapImageOverlay) {
+        overlayBaseData.centerLat = e.latlng.lat;
+        overlayBaseData.centerLng = e.latlng.lng;
+        updateOverlayTransform();
+        showQuietAlert("📍 ย้ายจุดกึ่งกลางภาพซ้อนมายังตำแหน่งที่คลิก");
+      }
+    });
 
     setTimeout(() => { map.invalidateSize(); }, 300);
   } catch (err) {
@@ -136,11 +170,6 @@ function handleBMAMaskOverlay(show, selectedLoc) {
   } catch(err) {}
 }
 
-// ==========================================
-// 🗺️ ฟังก์ชันตรวจสอบพิกัดตกใน Polygon และดรอปแสงพื้นที่ชำรุด
-// ==========================================
-
-// ฟังก์ชัน Ray-casting Algorithm สำหรับตรวจสอบว่าจุด (lat, lng) อยู่ใน Polygon หรือไม่
 function isPointInPolygon(point, vs) {
   const x = point[0], y = point[1];
   let inside = false;
@@ -159,10 +188,8 @@ function checkFeatureContainsDamaged(feature, damagedPoints) {
   if (!geom) return false;
 
   for (let p = 0; p < damagedPoints.length; p++) {
-    const pt = [damagedPoints[p].lat, damagedPoints[p].lng]; // [Lat, Lng]
-
+    const pt = [damagedPoints[p].lat, damagedPoints[p].lng];
     if (geom.type === 'Polygon') {
-      // GeoJSON พิกัดเป็น [Lng, Lat] ต้องสลับเป็น [Lat, Lng] เพื่อตรวจ
       const poly = geom.coordinates[0].map(c => [c[1], c[0]]);
       if (isPointInPolygon(pt, poly)) return true;
     } else if (geom.type === 'MultiPolygon') {
@@ -176,20 +203,15 @@ function checkFeatureContainsDamaged(feature, damagedPoints) {
 }
 
 function drawBMAData(data, targetLocName) {
-  // 1. ดึงพิกัดของเสาไฟทั้งหมดที่สถานะเป็น "ชำรุด"
   const damagedPoints = [];
   allData.forEach(item => {
     const st = (item.Status || item.status || '').toString().trim();
     if (st === 'ชำรุด' && item.Lat && item.Lng) {
-      const lat = parseFloat(item.Lat);
-      const lng = parseFloat(item.Lng);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        damagedPoints.push({ lat: lat, lng: lng, id: item.ID });
-      }
+      const lat = parseFloat(item.Lat), lng = parseFloat(item.Lng);
+      if (!isNaN(lat) && !isNaN(lng)) damagedPoints.push({ lat, lng });
     }
   });
 
-  // ค้นหาชื่อเขตที่เลือก (ถ้ามี)
   let matchingDistrictName = "";
   if (targetLocName && targetLocName !== "all" && allData.length > 0) {
     const matchedAsset = allData.find(x => x['ที่ตั้ง'] === targetLocName);
@@ -203,79 +225,22 @@ function drawBMAData(data, targetLocName) {
     return pointsCount <= 5;
   }
 
-  // 2. วาดเลเยอร์เขตกรุงเทพฯ
   bmaDistrictsLayer = L.geoJSON(data, {
     filter: feature => !isTrashBox(feature),
     style: feature => {
       const props = feature.properties || {};
       const dName = props.dname || props.dist_th || props.name || '';
       const isSelected = matchingDistrictName && dName.toString().includes(matchingDistrictName);
-
-      // ตรวจสอบด้วยพิกัดทางภูมิศาสตร์ว่ามีจุดชำรุดอยู่ในเขตนี้หรือไม่
       const hasDamaged = checkFeatureContainsDamaged(feature, damagedPoints);
 
-      // กรณีที่ 1: เขตที่เลือกกรอง (เน้นขอบเขียว)
-      if (isSelected) {
-        return {
-          color: '#059669',
-          weight: 2.5,
-          fillColor: '#34d399',
-          fillOpacity: 0.15
-        };
-      }
-
-      // 🌟 กรณีที่ 2: เขตที่มีจุดชำรุด -> ดรอปพื้นที่ให้มืดลง (Dark Tint)
-      if (hasDamaged) {
-        return {
-          color: '#e11d48',       // เส้นขอบสีแดงเตือนภัย
-          weight: 2.0,
-          fillColor: '#0f172a',   // พื้นหลังมืดลง
-          fillOpacity: 0.35       // ความเข้มเงากำลังดี เห็นถนนและหมุดชัดเจน
-        };
-      }
-
-      // กรณีที่ 3: เขตปกติ -> สว่างใส
-      return {
-        color: '#047857',
-        weight: 1.0,
-        fillColor: '#ffffff',
-        fillOpacity: 0.0
-      };
-    },
-    onEachFeature: function(feature, layer) {
-      const props = feature.properties || {};
-      let districtName = props.dname || props.dist_th || '';
-      if (districtName) {
-        if (!districtName.includes('เขต')) districtName = 'เขต' + districtName;
-        const hasDamaged = checkFeatureContainsDamaged(feature, damagedPoints);
-        
-        layer.on('click', function(e) {
-          L.popup()
-            .setLatLng(e.latlng)
-            .setContent(`
-              <div style="font-family:'Kanit',sans-serif; padding:4px;">
-                <div style="font-size:14px; font-weight:bold; color:#065f46;">📍 ${districtName}</div>
-                <div style="font-size:11px; margin-top:2px; color:${hasDamaged ? '#e11d48; font-weight:bold;' : '#64748b;'}">
-                  ${hasDamaged ? '⚠️ ตรวจพบครุภัณฑ์ชำรุดในพื้นที่' : '🟢 การทำงานปกติ'}
-                </div>
-              </div>
-            `)
-            .openOn(map);
-        });
-      }
+      if (isSelected) return { color: '#059669', weight: 2.5, fillColor: '#34d399', fillOpacity: 0.15 };
+      if (hasDamaged) return { color: '#e11d48', weight: 2.0, fillColor: '#0f172a', fillOpacity: 0.35 };
+      return { color: '#047857', weight: 1.0, fillColor: '#ffffff', fillOpacity: 0.0 };
     }
   }).addTo(map);
 
-  // 3. ม่านบังตาด้านนอกขอบเขตกรุงเทพฯ (Hole Mask)
-  const worldOuterRing = [
-    [-90, -180],
-    [-90, 180],
-    [90, 180],
-    [90, -180]
-  ];
-  
+  const worldOuterRing = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
   const maskRings = [worldOuterRing];
-
   data.features.forEach(feature => {
     if (isTrashBox(feature)) return;
     const geom = feature.geometry;
@@ -286,12 +251,141 @@ function drawBMAData(data, targetLocName) {
     }
   });
 
-  bmaMaskLayer = L.polygon(maskRings, {
-    stroke: false,
-    fillColor: '#0f172a',
-    fillOpacity: 0.52,
-    interactive: false
+  bmaMaskLayer = L.polygon(maskRings, { stroke: false, fillColor: '#0f172a', fillOpacity: 0.52, interactive: false }).addTo(map);
+}
+
+// ==========================================
+// 🎨 5 Pin Color Themes & Custom Render
+// ==========================================
+function changePinColorTheme(themeKey) {
+  if (PIN_PALETTES[themeKey]) {
+    currentPinTheme = themeKey;
+    showQuietAlert(`🎨 เปลี่ยนธีมสีหมุดเป็น: ${themeKey.toUpperCase()}`);
+    applyFilters();
+  }
+}
+
+function createNumberedIcon(text, status) {
+  const palette = PIN_PALETTES[currentPinTheme] || PIN_PALETTES.emerald;
+  let colors = palette.normal;
+
+  if (status === 'ชำรุด') colors = palette.damaged;
+  else if (status === 'รอจำหน่าย') colors = palette.pending;
+  else if (status === 'จำหน่ายแล้ว') colors = palette.disposed;
+
+  const style = `background-color: ${colors.bg}; border: 2.5px solid ${colors.border}; color: ${colors.text}; border-radius: 8px; padding: 3px 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; box-shadow: 0 3px 8px rgba(0,0,0,0.25); white-space: nowrap;`;
+  return L.divIcon({ html: `<div style="${style}">${text}</div>`, iconSize: [85, 26], iconAnchor: [42, 13], className: 'custom-numbered-icon' });
+}
+
+// ==========================================
+// 🖼️ Map Image Overlay Studio (ปรับภาพซ้อน ละเอียดทุกมิติ)
+// ==========================================
+function toggleOverlayControlPanel() {
+  const panel = document.getElementById('imageOverlayPanel');
+  panel?.classList.toggle('hidden');
+}
+
+function handleOverlayFileUpload(input) {
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      overlayBaseData.imgUrl = e.target.result;
+      if (map) {
+        const center = map.getCenter();
+        overlayBaseData.centerLat = center.lat;
+        overlayBaseData.centerLng = center.lng;
+      }
+      createOrUpdateMapOverlay();
+      showQuietAlert("🖼️ แทรกภาพแปลนซ้อนลงบนแผนที่เรียบร้อย");
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function createOrUpdateMapOverlay() {
+  if (!overlayBaseData.imgUrl || !map) return;
+
+  const scale = parseFloat(document.getElementById('overlayScaleRange')?.value || 1.0);
+  const widthFactor = parseFloat(document.getElementById('overlayWidthRange')?.value || 1.0);
+  const heightFactor = parseFloat(document.getElementById('overlayHeightRange')?.value || 1.0);
+  const opacity = parseFloat(document.getElementById('overlayOpacityRange')?.value || 0.75);
+  const angle = parseFloat(document.getElementById('overlayAngleRange')?.value || 0);
+
+  const halfLat = (overlayBaseData.baseLatSpan * scale * heightFactor) / 2;
+  const halfLng = (overlayBaseData.baseLngSpan * scale * widthFactor) / 2;
+
+  const southWest = [overlayBaseData.centerLat - halfLat, overlayBaseData.centerLng - halfLng];
+  const northEast = [overlayBaseData.centerLat + halfLat, overlayBaseData.centerLng + halfLng];
+  const bounds = [southWest, northEast];
+
+  if (mapImageOverlay) {
+    map.removeLayer(mapImageOverlay);
+  }
+
+  mapImageOverlay = L.imageOverlay(overlayBaseData.imgUrl, bounds, {
+    opacity: opacity,
+    interactive: true,
+    className: 'custom-transform-overlay'
   }).addTo(map);
+
+  applyOverlayRotation(angle);
+}
+
+function applyOverlayRotation(angle) {
+  setTimeout(() => {
+    if (mapImageOverlay && mapImageOverlay._image) {
+      mapImageOverlay._image.style.transform += ` rotate(${angle}deg)`;
+    }
+  }, 50);
+}
+
+function updateOverlayTransform() {
+  const opacity = document.getElementById('overlayOpacityRange')?.value || 0.75;
+  const angle = document.getElementById('overlayAngleRange')?.value || 0;
+  const scale = document.getElementById('overlayScaleRange')?.value || 1.0;
+  const width = document.getElementById('overlayWidthRange')?.value || 1.0;
+  const height = document.getElementById('overlayHeightRange')?.value || 1.0;
+
+  document.getElementById('overlayOpacityVal').innerText = `${Math.round(opacity * 100)}%`;
+  document.getElementById('overlayAngleVal').innerText = `${angle}°`;
+  document.getElementById('overlayScaleVal').innerText = `${scale}x`;
+  document.getElementById('overlayWidthVal').innerText = `${width}x`;
+  document.getElementById('overlayHeightVal').innerText = `${height}x`;
+
+  if (mapImageOverlay) {
+    createOrUpdateMapOverlay();
+  }
+}
+
+function snapOverlayToCurrentCenter() {
+  if (map && mapImageOverlay) {
+    const c = map.getCenter();
+    overlayBaseData.centerLat = c.lat;
+    overlayBaseData.centerLng = c.lng;
+    createOrUpdateMapOverlay();
+    showQuietAlert("🎯 จัดภาพซ้อนมายังกึ่งกลางหน้าจอปัจจุบัน");
+  }
+}
+
+function resetOverlayTransform() {
+  document.getElementById('overlayOpacityRange').value = 0.75;
+  document.getElementById('overlayAngleRange').value = 0;
+  document.getElementById('overlayScaleRange').value = 1.0;
+  document.getElementById('overlayWidthRange').value = 1.0;
+  document.getElementById('overlayHeightRange').value = 1.0;
+  updateOverlayTransform();
+  showQuietAlert("🔄 รีเซ็ตค่าการปรับแต่งภาพเป็นค่าเริ่มต้น");
+}
+
+function removeMapOverlay() {
+  if (mapImageOverlay && map) {
+    map.removeLayer(mapImageOverlay);
+    mapImageOverlay = null;
+    overlayBaseData.imgUrl = '';
+    document.getElementById('overlayFileInput').value = '';
+    showQuietAlert("🗑️ นำภาพแปลนซ้อนออกจากแผนที่แล้ว");
+  }
 }
 
 // ==========================================
@@ -342,16 +436,6 @@ function processDataSequence(data) {
     item.sequenceNum = counters[loc];
   });
   return data;
-}
-
-function createNumberedIcon(text, status) {
-  let borderColor = '#10b981', bgColor = '#ecfdf5', textColor = '#047857';
-  if(status === 'ชำรุด') { borderColor = '#ef4444'; bgColor = '#fef2f2'; textColor = '#dc2626'; }
-  else if(status === 'รอจำหน่าย') { borderColor = '#f59e0b'; bgColor = '#fffbeb'; textColor = '#b45309'; }
-  else if(status === 'จำหน่ายแล้ว') { borderColor = '#6b7280'; bgColor = '#f3f4f6'; textColor = '#374151'; }
-  
-  const style = `background-color: ${bgColor}; border: 2.5px solid ${borderColor}; color: ${textColor}; border-radius: 8px; padding: 3px 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; box-shadow: 0 3px 8px rgba(0,0,0,0.25); white-space: nowrap;`;
-  return L.divIcon({ html: `<div style="${style}">${text}</div>`, iconSize: [85, 26], iconAnchor: [42, 13], className: 'custom-numbered-icon' });
 }
 
 function updateStatisticsCounters(data) {
@@ -1120,8 +1204,6 @@ function getCurrentLocation() {
 function handleNativeImage(input, previewImgId, companionInputId) {
   if (input.files && input.files[0]) {
     const file = input.files[0];
-    
-    // บีบอัดรูปภาพทันที
     compressImage(file, base64 => {
       const previewEl = document.getElementById(previewImgId);
       const previewBox = document.getElementById(previewImgId + '_box');
@@ -1130,7 +1212,6 @@ function handleNativeImage(input, previewImgId, companionInputId) {
         previewBox.classList.remove('hidden');
       }
 
-      // บันทึกลง Map โดยอ้างอิงจากคีย์กลาง
       const key = input.id.includes('Capture') ? input.id.replace('Capture', 'File') : input.id;
       compressedImageMap[key] = {
         base64: base64,
@@ -1138,7 +1219,6 @@ function handleNativeImage(input, previewImgId, companionInputId) {
         type: "image/jpeg"
       };
 
-      // ล้างค่าใน input คู่ขนานเพื่อไม่ให้ส่งไฟล์ซ้ำ
       const companion = document.getElementById(companionInputId);
       if (companion) companion.value = '';
     });
