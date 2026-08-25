@@ -1,4 +1,4 @@
-let map = null, markersLayer = null, allData = [], markerDict = {};
+let map, markersLayer, allData = [], markerDict = {};
 let isOfficer = false, isTechnician = false, isAdmin = false, currentDepartment = "";
 let currentActiveId = "", currentActiveItemRaw = null, bmaMaskLayer = null, bmaDistrictsLayer = null, bmaCachedGeoJSON = null;
 let successListGlobal = [], successListRaw = [], currentPage = 1, recordsPerPage = 25;
@@ -7,19 +7,15 @@ let masterDisplayList = [];
 let globalReportCounts = {};
 let currentUserCode = "";
 let indexRawData = [], indexFilteredData = [], indexHeaders = [];
-let compressedImageMap = {}; // คลังเก็บ Base64 ของรูปภาพที่เลือก/ถ่าย
 
-// ==========================================
-// 🚀 Lifecycle Initializer
-// ==========================================
-document.addEventListener("DOMContentLoaded", function () {
-  initMap();
-  loadMarkers();
+window.onload = function() { 
+  initMap(); 
+  loadMarkers(); 
   loadIndexData();
-});
+};
 
 // ==========================================
-// 🌐 API Helper Functions
+// 🌐 API Bridge (Fetch Client)
 // ==========================================
 async function apiGet(action, params = {}) {
   const url = new URL(API_BASE_URL);
@@ -43,58 +39,22 @@ async function apiPost(action, data = {}) {
 }
 
 // ==========================================
-// 🗺️ Leaflet Map Initializer (Minimal & Ultra-Clean Satellite)
+// 🗺️ Leaflet Map & BMA Overlay
 // ==========================================
 function initMap() {
   try {
-    const mapContainer = document.getElementById('map');
-    if (!mapContainer || map) return;
-
-    // 1. แผนที่ถนนแบบ Clean Standard (Carto Voyager)
     const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20,
-      attribution: '&copy; CartoDB'
+      maxZoom: 20, attribution: '&copy; CartoDB'
+    });
+    const satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      maxZoom: 20, attribution: '&copy; Google Maps'
     });
 
-    // 2.1 ชั้นภาพถ่ายดาวเทียมความละเอียดสูง (Esri World Imagery)
-    const satBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      attribution: '&copy; Esri World Imagery',
-      className: 'clean-satellite-tiles'
-    });
-
-    // 2.2 ชั้นโครงข่ายถนนเฉพาะเส้นทางหลัก
-    const satRoads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      opacity: 0.75
-    });
-
-    // 2.3 ชั้นป้ายชื่อเฉพาะถนนและเขตสำคัญ (Carto Clean Labels)
-    const satLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20,
-      subdomains: 'abcd',
-      className: 'clean-satellite-labels'
-    });
-
-    // 2.4 รวมเป็นชั้นดาวเทียมแบบคลีน
-    const cleanSatelliteLayer = L.layerGroup([satBase, satRoads, satLabels]);
-
-    // สร้าง Map Object
-    map = L.map('map', {
-      center: [13.745, 100.62],
-      zoom: 11,
-      layers: [streetLayer]
-    });
-
+    map = L.map('map', { center: [13.745, 100.62], zoom: 11, layers: [streetLayer] });
     markersLayer = L.markerClusterGroup({ maxClusterRadius: 50, disableClusteringAtZoom: 17 });
     markersLayer.addTo(map);
 
-    L.control.layers({
-      "🗺️ แผนที่ถนน": streetLayer,
-      "🛰️ ภาพดาวเทียม (Minimal)": cleanSatelliteLayer
-    }, null, { position: 'topleft' }).addTo(map);
-
-    setTimeout(() => { map.invalidateSize(); }, 300);
+    L.control.layers({ "🗺️ แผนที่ถนน": streetLayer, "🛰️ ภาพดาวเทียม": satelliteLayer }, null, { position: 'topleft' }).addTo(map);
   } catch (err) {
     console.error("Map initialization failed:", err);
   }
@@ -135,53 +95,7 @@ function handleBMAMaskOverlay(show, selectedLoc) {
   } catch(err) {}
 }
 
-// ฟังก์ชัน Ray-casting Algorithm สำหรับตรวจสอบพิกัดใน Polygon
-function isPointInPolygon(point, vs) {
-  const x = point[0], y = point[1];
-  let inside = false;
-  for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-    const xi = vs[i][0], yi = vs[i][1];
-    const xj = vs[j][0], yj = vs[j][1];
-    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
-
-function checkFeatureContainsDamaged(feature, damagedPoints) {
-  if (!damagedPoints || damagedPoints.length === 0) return false;
-  const geom = feature.geometry;
-  if (!geom) return false;
-
-  for (let p = 0; p < damagedPoints.length; p++) {
-    const pt = [damagedPoints[p].lat, damagedPoints[p].lng];
-
-    if (geom.type === 'Polygon') {
-      const poly = geom.coordinates[0].map(c => [c[1], c[0]]);
-      if (isPointInPolygon(pt, poly)) return true;
-    } else if (geom.type === 'MultiPolygon') {
-      for (let k = 0; k < geom.coordinates.length; k++) {
-        const poly = geom.coordinates[k][0].map(c => [c[1], c[0]]);
-        if (isPointInPolygon(pt, poly)) return true;
-      }
-    }
-  }
-  return false;
-}
-
 function drawBMAData(data, targetLocName) {
-  const damagedPoints = [];
-  allData.forEach(item => {
-    const st = (item.Status || item.status || '').toString().trim();
-    if (st === 'ชำรุด' && item.Lat && item.Lng) {
-      const lat = parseFloat(item.Lat);
-      const lng = parseFloat(item.Lng);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        damagedPoints.push({ lat: lat, lng: lng, id: item.ID });
-      }
-    }
-  });
-
   let matchingDistrictName = "";
   if (targetLocName && targetLocName !== "all" && allData.length > 0) {
     const matchedAsset = allData.find(x => x['ที่ตั้ง'] === targetLocName);
@@ -200,67 +114,15 @@ function drawBMAData(data, targetLocName) {
     style: feature => {
       const props = feature.properties || {};
       const dName = props.dname || props.dist_th || props.name || '';
-      const isSelected = matchingDistrictName && dName.toString().includes(matchingDistrictName);
-      const hasDamaged = checkFeatureContainsDamaged(feature, damagedPoints);
-
-      if (isSelected) {
-        return {
-          color: '#059669',
-          weight: 2.5,
-          fillColor: '#34d399',
-          fillOpacity: 0.15
-        };
+      if (matchingDistrictName && dName.toString().includes(matchingDistrictName)) {
+        return { color: '#059669', weight: 2.5, fillColor: '#34d399', fillOpacity: 0.15 };
       }
-
-      if (hasDamaged) {
-        return {
-          color: '#e11d48',
-          weight: 2.0,
-          fillColor: '#0f172a',
-          fillOpacity: 0.35
-        };
-      }
-
-      return {
-        color: '#047857',
-        weight: 1.0,
-        fillColor: '#ffffff',
-        fillOpacity: 0.0
-      };
-    },
-    onEachFeature: function(feature, layer) {
-      const props = feature.properties || {};
-      let districtName = props.dname || props.dist_th || '';
-      if (districtName) {
-        if (!districtName.includes('เขต')) districtName = 'เขต' + districtName;
-        const hasDamaged = checkFeatureContainsDamaged(feature, damagedPoints);
-        
-        layer.on('click', function(e) {
-          L.popup()
-            .setLatLng(e.latlng)
-            .setContent(`
-              <div style="font-family:'Kanit',sans-serif; padding:4px;">
-                <div style="font-size:14px; font-weight:bold; color:#065f46;">📍 ${districtName}</div>
-                <div style="font-size:11px; margin-top:2px; color:${hasDamaged ? '#e11d48; font-weight:bold;' : '#64748b;'}">
-                  ${hasDamaged ? '⚠️ ตรวจพบครุภัณฑ์ชำรุดในพื้นที่' : '🟢 การทำงานปกติ'}
-                </div>
-              </div>
-            `)
-            .openOn(map);
-        });
-      }
+      return { color: '#047857', weight: 1.2, fillColor: '#10b981', fillOpacity: 0.02 };
     }
   }).addTo(map);
 
-  const worldOuterRing = [
-    [-90, -180],
-    [-90, 180],
-    [90, 180],
-    [90, -180]
-  ];
-  
+  const worldOuterRing = [[90, -180], [90, 180], [-90, 180], [-90, -180]];
   const maskRings = [worldOuterRing];
-
   data.features.forEach(feature => {
     if (isTrashBox(feature)) return;
     const geom = feature.geometry;
@@ -271,16 +133,11 @@ function drawBMAData(data, targetLocName) {
     }
   });
 
-  bmaMaskLayer = L.polygon(maskRings, {
-    stroke: false,
-    fillColor: '#0f172a',
-    fillOpacity: 0.52,
-    interactive: false
-  }).addTo(map);
+  bmaMaskLayer = L.polygon(maskRings, { stroke: false, fillColor: '#0f172a', fillOpacity: 0.45, interactive: false }).addTo(map);
 }
 
 // ==========================================
-// 📊 Data Loading & Dynamic Dependent Filters
+// 📊 Data Loading & Dynamic Dependent Filter Logic
 // ==========================================
 async function loadMarkers(userCode) {
   if (userCode !== undefined) currentUserCode = userCode;
@@ -291,6 +148,8 @@ async function loadMarkers(userCode) {
     if (res && res.success) {
       allData = processDataSequence(res.data || []);
       updateStatisticsCounters(allData);
+      
+      // อัปเดต Dropdown หน่วยงานและสถานที่แบบสัมพันธ์กัน
       initFilterDropdowns(allData);
 
       apiGet('getRepairHistory').then(historyRes => {
@@ -354,6 +213,7 @@ function updateStatisticsCounters(data) {
   document.getElementById('count_disposed').innerText = disposed;
 }
 
+// 🌟 ฟังก์ชันสร้าง Dropdown เริ่มต้น
 function initFilterDropdowns(data) {
   const dSelect = document.getElementById('departmentFilter');
   if (!dSelect || !data) return;
@@ -368,9 +228,12 @@ function initFilterDropdowns(data) {
     depts.forEach(d => dSelect.innerHTML += `<option value="${d}">${d}</option>`);
     dSelect.disabled = false;
   }
+
+  // เรียกอัปเดตสถานที่ตามหน่วยงานที่เลือกเริ่มต้น
   updateLocationDropdownByDepartment(dSelect.value);
 }
 
+// 🌟 ฟังก์ชันอัปเดต Dropdown สถานที่แบบไดนามิกเฉพาะของหน่วยงานนั้นๆ
 function updateLocationDropdownByDepartment(dept) {
   const lSelect = document.getElementById('locationFilter');
   if (!lSelect) return;
@@ -385,10 +248,15 @@ function updateLocationDropdownByDepartment(dept) {
   locs.forEach(l => lSelect.innerHTML += `<option value="${l}">${l}</option>`);
 }
 
+// 🌟 Event Trigger เมื่อผู้ใช้เปลี่ยนการเลือกใน Dropdown หน่วยงาน
 function onDepartmentFilterChange() {
   const dSelect = document.getElementById('departmentFilter');
   if (!dSelect) return;
+  
+  // 1. อัปเดตรายชื่อสถานที่ให้เหลือเฉพาะในหน่วยงานที่เลือก
   updateLocationDropdownByDepartment(dSelect.value);
+  
+  // 2. สั่งกรองข้อมูลและวาดหมุดบนแผนที่ใหม่
   applyFilters();
 }
 
@@ -719,27 +587,38 @@ async function handleTechSubmit(e) {
     assetId: document.getElementById('techEquipId').value,
     details: completeDetails,
     technicianName: document.getElementById('techName').value,
-    imageAfter: compressedImageMap['imageAfterFile'] ? compressedImageMap['imageAfterFile'].base64 : null
+    imageAfter: null
   };
 
+  const fInput = document.getElementById('imageAfterFile');
   showLoadingModal("🔧 กำลังบันทึกปิดงานซ่อม...", "ระบบกำลังประมวลผลรูปภาพและข้อมูล");
 
-  try {
-    const res = await apiPost('updateRepairStatus', data);
-    hideLoadingModal();
-    if (btn) btn.disabled = false;
-    showQuietAlert(res.message);
-    if (res.success) {
-      document.getElementById('techForm').reset();
-      document.getElementById('dynamicMaterialsList').innerHTML = '';
-      removeImagePreview('preview_tech_after_box', 'preview_tech_after', ['imageAfterCapture', 'imageAfterFile']);
-      loadMarkers();
-      closeModal();
+  const send = async () => {
+    try {
+      const res = await apiPost('updateRepairStatus', data);
+      hideLoadingModal();
+      if (btn) btn.disabled = false;
+      showQuietAlert(res.message);
+      if (res.success) {
+        document.getElementById('techForm').reset();
+        document.getElementById('dynamicMaterialsList').innerHTML = '';
+        loadMarkers();
+        closeModal();
+      }
+    } catch (err) {
+      hideLoadingModal();
+      if (btn) btn.disabled = false;
+      showQuietAlert("❌ เกิดข้อผิดพลาด: " + err.toString());
     }
-  } catch (err) {
-    hideLoadingModal();
-    if (btn) btn.disabled = false;
-    showQuietAlert("❌ เกิดข้อผิดพลาด: " + err.toString());
+  };
+
+  if (fInput.files.length > 0) {
+    compressImage(fInput.files[0], b64 => {
+      data.imageAfter = { base64: b64, name: fInput.files[0].name, type: "image/jpeg" };
+      send();
+    });
+  } else {
+    send();
   }
 }
 
@@ -787,6 +666,7 @@ async function loadAllRepairsHistory() {
   applySuccessFilters();
 }
 
+// 🌟 สร้าง Dropdown เริ่มต้นสำหรับตารางงานซ่อมเสร็จ
 function initSuccessDropdowns(data) {
   const sdSelect = document.getElementById('successDeptFilter');
   if (!sdSelect) return;
@@ -797,6 +677,7 @@ function initSuccessDropdowns(data) {
   updateSuccessLocationDropdown(sdSelect.value);
 }
 
+// 🌟 อัปเดตสถานที่แบบไดนามิกในตารางงานซ่อมเสร็จ
 function updateSuccessLocationDropdown(dept) {
   const slSelect = document.getElementById('successLocFilter');
   if (!slSelect) return;
@@ -993,12 +874,7 @@ function openAddAssetModal() {
   }
 }
 
-function closeAddAssetModal() { 
-  document.getElementById('addAssetModal')?.classList.add('hidden'); 
-  document.getElementById('addEquipmentForm').reset(); 
-  removeImagePreview('preview_add_image_box', 'preview_add_image', ['addImageCapture', 'addImageFile']);
-  removeImagePreview('preview_add_qr_box', 'preview_add_qr', ['addQrCapture', 'addQrFile']);
-}
+function closeAddAssetModal() { document.getElementById('addAssetModal')?.classList.add('hidden'); document.getElementById('addEquipmentForm').reset(); }
 
 function triggerEditAsset() {
   if (!currentActiveItemRaw) return;
@@ -1015,11 +891,7 @@ function triggerEditAsset() {
   document.getElementById('editAssetModal')?.classList.remove('hidden');
 }
 
-function closeEditAssetModal() { 
-  document.getElementById('editAssetModal')?.classList.add('hidden'); 
-  removeImagePreview('preview_edit_image_box', 'preview_edit_image', ['editImageCapture', 'editImageFile']);
-  removeImagePreview('preview_edit_qr_box', 'preview_edit_qr', ['editQrCapture', 'editQrFile']);
-}
+function closeEditAssetModal() { document.getElementById('editAssetModal')?.classList.add('hidden'); }
 
 async function handleFormSubmit(e) {
   e.preventDefault();
@@ -1032,24 +904,34 @@ async function handleFormSubmit(e) {
     type: form.type.value, assetNo: form.assetNo.value, name: form.name.value,
     department: form.department.value, location: form.location.value,
     lat: form.lat.value, lng: form.lng.value, status: form.status.value,
-    note: form.note.value || '', 
-    imageFile: compressedImageMap['addImageFile'] || null, 
-    qrCodeFile: compressedImageMap['addQrFile'] || null
+    note: form.note.value || '', imageFile: null, qrCodeFile: null
   };
 
-  try {
-    const res = await apiPost('saveEquipment', data);
-    btn.disabled = false;
-    btn.innerText = "บันทึกข้อมูลเข้าฐานระบบ";
-    showQuietAlert(res.message);
-    if (res.success) { 
-      closeAddAssetModal(); 
-      loadMarkers(); 
+  const proceed = async () => {
+    try {
+      const res = await apiPost('saveEquipment', data);
+      btn.disabled = false;
+      btn.innerText = "บันทึกข้อมูลเข้าฐานระบบ";
+      showQuietAlert(res.message);
+      if (res.success) { closeAddAssetModal(); loadMarkers(); }
+    } catch (err) {
+      btn.disabled = false;
+      showQuietAlert("❌ บันทึกล้มเหลว");
     }
-  } catch (err) {
-    btn.disabled = false;
-    showQuietAlert("❌ บันทึกล้มเหลว");
-  }
+  };
+
+  const fInput = document.getElementById('imageFile'), qInput = document.getElementById('qrCodeFile');
+  if (fInput.files.length > 0) {
+    compressImage(fInput.files[0], b64 => {
+      data.imageFile = { base64: b64, name: fInput.files[0].name, type: "image/jpeg" };
+      if (qInput.files.length > 0) {
+        compressImage(qInput.files[0], qb64 => {
+          data.qrCodeFile = { base64: qb64, name: qInput.files[0].name, type: "image/jpeg" };
+          proceed();
+        });
+      } else { proceed(); }
+    });
+  } else { proceed(); }
 }
 
 async function handleEditFormSubmit(e) {
@@ -1069,24 +951,34 @@ async function handleEditFormSubmit(e) {
     lat: document.getElementById('edit_lat').value,
     lng: document.getElementById('edit_lng').value,
     note: document.getElementById('edit_note').value,
-    imageFile: compressedImageMap['editImageFile'] || null, 
-    qrCodeFile: compressedImageMap['editQrFile'] || null
+    imageFile: null, qrCodeFile: null
   };
 
-  try {
-    const res = await apiPost('updateEquipment', sendData);
-    btn.disabled = false;
-    btn.innerText = "💾 บันทึกแก้ไขโครงสร้างข้อมูล";
-    showQuietAlert(res.message);
-    if (res.success) { 
-      closeEditAssetModal(); 
-      closeModal(); 
-      loadMarkers(); 
+  const proceed = async () => {
+    try {
+      const res = await apiPost('updateEquipment', sendData);
+      btn.disabled = false;
+      btn.innerText = "💾 บันทึกแก้ไขโครงสร้างข้อมูล";
+      showQuietAlert(res.message);
+      if (res.success) { closeEditAssetModal(); closeModal(); loadMarkers(); }
+    } catch(err) {
+      btn.disabled = false;
+      showQuietAlert("❌ แก้ไขล้มเหลว");
     }
-  } catch(err) {
-    btn.disabled = false;
-    showQuietAlert("❌ แก้ไขล้มเหลว");
-  }
+  };
+
+  const imgInput = document.getElementById('editImageFile'), qrInput = document.getElementById('editQrCodeFile');
+  if (imgInput.files.length > 0) {
+    compressImage(imgInput.files[0], b64 => {
+      sendData.imageFile = { base64: b64, name: imgInput.files[0].name, type: "image/jpeg" };
+      if (qrInput.files.length > 0) {
+        compressImage(qrInput.files[0], qb64 => {
+          sendData.qrCodeFile = { base64: qb64, name: qrInput.files[0].name, type: "image/jpeg" };
+          proceed();
+        });
+      } else { proceed(); }
+    });
+  } else { proceed(); }
 }
 
 function getCurrentLocation() {
@@ -1095,52 +987,6 @@ function getCurrentLocation() {
       document.getElementById('formLat').value = p.coords.latitude.toFixed(6);
       document.getElementById('formLng').value = p.coords.longitude.toFixed(6);
       showQuietAlert("🎯 ดึงพิกัดดาวเทียมสำเร็จ");
-    });
-  }
-}
-
-// ==========================================
-// 📷 Native Mobile Camera & Image Handling
-// ==========================================
-function handleNativeImage(input, previewImgId, companionInputId) {
-  if (input.files && input.files[0]) {
-    const file = input.files[0];
-    
-    // บีบอัดรูปภาพทันที
-    compressImage(file, base64 => {
-      const previewEl = document.getElementById(previewImgId);
-      const previewBox = document.getElementById(previewImgId + '_box');
-      if (previewEl && previewBox) {
-        previewEl.src = base64;
-        previewBox.classList.remove('hidden');
-      }
-
-      // บันทึกลง Map โดยอ้างอิงจากคีย์กลาง
-      const key = input.id.includes('Capture') ? input.id.replace('Capture', 'File') : input.id;
-      compressedImageMap[key] = {
-        base64: base64,
-        name: file.name || `photo_${Date.now()}.jpg`,
-        type: "image/jpeg"
-      };
-
-      // ล้างค่าใน input คู่ขนานเพื่อไม่ให้ส่งไฟล์ซ้ำ
-      const companion = document.getElementById(companionInputId);
-      if (companion) companion.value = '';
-    });
-  }
-}
-
-function removeImagePreview(boxId, imgId, inputIds) {
-  document.getElementById(boxId)?.classList.add('hidden');
-  const img = document.getElementById(imgId);
-  if (img) img.src = '';
-  
-  if (Array.isArray(inputIds)) {
-    inputIds.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.value = '';
-      const key = id.includes('Capture') ? id.replace('Capture', 'File') : id;
-      delete compressedImageMap[key];
     });
   }
 }
