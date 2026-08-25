@@ -1,4 +1,4 @@
-let map, markersLayer, allData = [], markerDict = {};
+let map = null, markersLayer = null, allData = [], markerDict = {};
 let isOfficer = false, isTechnician = false, isAdmin = false, currentDepartment = "";
 let currentActiveId = "", currentActiveItemRaw = null, bmaMaskLayer = null, bmaDistrictsLayer = null, bmaCachedGeoJSON = null;
 let successListGlobal = [], successListRaw = [], currentPage = 1, recordsPerPage = 25;
@@ -8,14 +8,17 @@ let globalReportCounts = {};
 let currentUserCode = "";
 let indexRawData = [], indexFilteredData = [], indexHeaders = [];
 
-window.onload = function() { 
-  initMap(); 
-  loadMarkers(); 
+// ==========================================
+// 🚀 Lifecycle Initializer
+// ==========================================
+document.addEventListener("DOMContentLoaded", function () {
+  initMap();
+  loadMarkers();
   loadIndexData();
-};
+});
 
 // ==========================================
-// 🌐 API Bridge (Fetch Client)
+// 🌐 API Helper Functions
 // ==========================================
 async function apiGet(action, params = {}) {
   const url = new URL(API_BASE_URL);
@@ -39,10 +42,13 @@ async function apiPost(action, data = {}) {
 }
 
 // ==========================================
-// 🗺️ Leaflet Map & BMA Overlay
+// 🗺️ Leaflet Map Initializer
 // ==========================================
 function initMap() {
   try {
+    const mapContainer = document.getElementById('map');
+    if (!mapContainer || map) return;
+
     const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       maxZoom: 20, attribution: '&copy; CartoDB'
     });
@@ -55,6 +61,7 @@ function initMap() {
     markersLayer.addTo(map);
 
     L.control.layers({ "🗺️ แผนที่ถนน": streetLayer, "🛰️ ภาพดาวเทียม": satelliteLayer }, null, { position: 'topleft' }).addTo(map);
+    setTimeout(() => { map.invalidateSize(); }, 300);
   } catch (err) {
     console.error("Map initialization failed:", err);
   }
@@ -137,7 +144,7 @@ function drawBMAData(data, targetLocName) {
 }
 
 // ==========================================
-// 📊 Data Loading & Dynamic Dependent Filter Logic
+// 📊 Data Loading & Dynamic Dependent Filters
 // ==========================================
 async function loadMarkers(userCode) {
   if (userCode !== undefined) currentUserCode = userCode;
@@ -148,8 +155,6 @@ async function loadMarkers(userCode) {
     if (res && res.success) {
       allData = processDataSequence(res.data || []);
       updateStatisticsCounters(allData);
-      
-      // อัปเดต Dropdown หน่วยงานและสถานที่แบบสัมพันธ์กัน
       initFilterDropdowns(allData);
 
       apiGet('getRepairHistory').then(historyRes => {
@@ -213,7 +218,6 @@ function updateStatisticsCounters(data) {
   document.getElementById('count_disposed').innerText = disposed;
 }
 
-// 🌟 ฟังก์ชันสร้าง Dropdown เริ่มต้น
 function initFilterDropdowns(data) {
   const dSelect = document.getElementById('departmentFilter');
   if (!dSelect || !data) return;
@@ -228,12 +232,9 @@ function initFilterDropdowns(data) {
     depts.forEach(d => dSelect.innerHTML += `<option value="${d}">${d}</option>`);
     dSelect.disabled = false;
   }
-
-  // เรียกอัปเดตสถานที่ตามหน่วยงานที่เลือกเริ่มต้น
   updateLocationDropdownByDepartment(dSelect.value);
 }
 
-// 🌟 ฟังก์ชันอัปเดต Dropdown สถานที่แบบไดนามิกเฉพาะของหน่วยงานนั้นๆ
 function updateLocationDropdownByDepartment(dept) {
   const lSelect = document.getElementById('locationFilter');
   if (!lSelect) return;
@@ -248,15 +249,10 @@ function updateLocationDropdownByDepartment(dept) {
   locs.forEach(l => lSelect.innerHTML += `<option value="${l}">${l}</option>`);
 }
 
-// 🌟 Event Trigger เมื่อผู้ใช้เปลี่ยนการเลือกใน Dropdown หน่วยงาน
 function onDepartmentFilterChange() {
   const dSelect = document.getElementById('departmentFilter');
   if (!dSelect) return;
-  
-  // 1. อัปเดตรายชื่อสถานที่ให้เหลือเฉพาะในหน่วยงานที่เลือก
   updateLocationDropdownByDepartment(dSelect.value);
-  
-  // 2. สั่งกรองข้อมูลและวาดหมุดบนแผนที่ใหม่
   applyFilters();
 }
 
@@ -587,7 +583,7 @@ async function handleTechSubmit(e) {
     assetId: document.getElementById('techEquipId').value,
     details: completeDetails,
     technicianName: document.getElementById('techName').value,
-    imageAfter: null
+    imageAfter: capturedBlobMap['imageAfterFile'] ? capturedBlobMap['imageAfterFile'].base64 : null
   };
 
   const fInput = document.getElementById('imageAfterFile');
@@ -602,6 +598,7 @@ async function handleTechSubmit(e) {
       if (res.success) {
         document.getElementById('techForm').reset();
         document.getElementById('dynamicMaterialsList').innerHTML = '';
+        removeImagePreview('preview_tech_after_box', 'preview_tech_after', 'imageAfterFile');
         loadMarkers();
         closeModal();
       }
@@ -612,7 +609,7 @@ async function handleTechSubmit(e) {
     }
   };
 
-  if (fInput.files.length > 0) {
+  if (!data.imageAfter && fInput.files.length > 0) {
     compressImage(fInput.files[0], b64 => {
       data.imageAfter = { base64: b64, name: fInput.files[0].name, type: "image/jpeg" };
       send();
@@ -666,7 +663,6 @@ async function loadAllRepairsHistory() {
   applySuccessFilters();
 }
 
-// 🌟 สร้าง Dropdown เริ่มต้นสำหรับตารางงานซ่อมเสร็จ
 function initSuccessDropdowns(data) {
   const sdSelect = document.getElementById('successDeptFilter');
   if (!sdSelect) return;
@@ -677,7 +673,6 @@ function initSuccessDropdowns(data) {
   updateSuccessLocationDropdown(sdSelect.value);
 }
 
-// 🌟 อัปเดตสถานที่แบบไดนามิกในตารางงานซ่อมเสร็จ
 function updateSuccessLocationDropdown(dept) {
   const slSelect = document.getElementById('successLocFilter');
   if (!slSelect) return;
@@ -920,18 +915,28 @@ async function handleFormSubmit(e) {
     }
   };
 
+  if (capturedBlobMap['imageFile']) data.imageFile = capturedBlobMap['imageFile'];
+  if (capturedBlobMap['qrCodeFile']) data.qrCodeFile = capturedBlobMap['qrCodeFile'];
+
   const fInput = document.getElementById('imageFile'), qInput = document.getElementById('qrCodeFile');
-  if (fInput.files.length > 0) {
+  if (!data.imageFile && fInput.files.length > 0) {
     compressImage(fInput.files[0], b64 => {
       data.imageFile = { base64: b64, name: fInput.files[0].name, type: "image/jpeg" };
-      if (qInput.files.length > 0) {
+      if (!data.qrCodeFile && qInput.files.length > 0) {
         compressImage(qInput.files[0], qb64 => {
           data.qrCodeFile = { base64: qb64, name: qInput.files[0].name, type: "image/jpeg" };
           proceed();
         });
       } else { proceed(); }
     });
-  } else { proceed(); }
+  } else if (!data.qrCodeFile && qInput.files.length > 0) {
+    compressImage(qInput.files[0], qb64 => {
+      data.qrCodeFile = { base64: qb64, name: qInput.files[0].name, type: "image/jpeg" };
+      proceed();
+    });
+  } else {
+    proceed();
+  }
 }
 
 async function handleEditFormSubmit(e) {
@@ -967,18 +972,28 @@ async function handleEditFormSubmit(e) {
     }
   };
 
+  if (capturedBlobMap['editImageFile']) sendData.imageFile = capturedBlobMap['editImageFile'];
+  if (capturedBlobMap['editQrCodeFile']) sendData.qrCodeFile = capturedBlobMap['editQrCodeFile'];
+
   const imgInput = document.getElementById('editImageFile'), qrInput = document.getElementById('editQrCodeFile');
-  if (imgInput.files.length > 0) {
+  if (!sendData.imageFile && imgInput.files.length > 0) {
     compressImage(imgInput.files[0], b64 => {
       sendData.imageFile = { base64: b64, name: imgInput.files[0].name, type: "image/jpeg" };
-      if (qrInput.files.length > 0) {
+      if (!sendData.qrCodeFile && qrInput.files.length > 0) {
         compressImage(qrInput.files[0], qb64 => {
           sendData.qrCodeFile = { base64: qb64, name: qrInput.files[0].name, type: "image/jpeg" };
           proceed();
         });
       } else { proceed(); }
     });
-  } else { proceed(); }
+  } else if (!sendData.qrCodeFile && qrInput.files.length > 0) {
+    compressImage(qrInput.files[0], qb64 => {
+      sendData.qrCodeFile = { base64: qb64, name: qrInput.files[0].name, type: "image/jpeg" };
+      proceed();
+    });
+  } else {
+    proceed();
+  }
 }
 
 function getCurrentLocation() {
@@ -1007,6 +1022,111 @@ function compressImage(file, callback) {
       callback(canvas.toDataURL('image/jpeg', 0.7));
     };
   };
+}
+
+// ==========================================
+// 📷 Web Camera & Image Capture Engine
+// ==========================================
+let cameraStream = null;
+let currentCameraFacing = 'environment';
+let targetPreviewImgId = '';
+let targetFileInputId = '';
+let capturedBlobMap = {};
+
+async function openCameraModal(previewId, fileInputId) {
+  targetPreviewImgId = previewId;
+  targetFileInputId = fileInputId;
+  const modal = document.getElementById('cameraModal');
+  modal.classList.remove('hidden');
+  await startCameraStream();
+}
+
+async function startCameraStream() {
+  const video = document.getElementById('cameraVideo');
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+  }
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: currentCameraFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    video.srcObject = cameraStream;
+  } catch (err) {
+    console.warn("ไม่สามารถเปิดกล้องได้:", err);
+    showQuietAlert("⚠️ ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์การใช้กล้อง หรือเลือกไฟล์แทน");
+    closeCameraModal();
+    document.getElementById(targetFileInputId)?.click();
+  }
+}
+
+function switchCameraFacing() {
+  currentCameraFacing = (currentCameraFacing === 'environment') ? 'user' : 'environment';
+  startCameraStream();
+}
+
+function capturePhoto() {
+  const video = document.getElementById('cameraVideo');
+  const canvas = document.getElementById('cameraCanvas');
+  if (!video || !canvas) return;
+
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const base64Img = canvas.toDataURL('image/jpeg', 0.75);
+
+  const previewEl = document.getElementById(targetPreviewImgId);
+  const previewBox = document.getElementById(targetPreviewImgId + '_box');
+  if (previewEl && previewBox) {
+    previewEl.src = base64Img;
+    previewBox.classList.remove('hidden');
+  }
+
+  capturedBlobMap[targetFileInputId] = {
+    base64: base64Img,
+    name: "capture_" + Date.now() + ".jpg",
+    type: "image/jpeg"
+  };
+
+  closeCameraModal();
+  showQuietAlert("📸 บันทึกภาพถ่ายเรียบร้อย");
+}
+
+function closeCameraModal() {
+  const modal = document.getElementById('cameraModal');
+  modal.classList.add('hidden');
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+}
+
+function previewImageFromFile(input, previewImgId) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const previewEl = document.getElementById(previewImgId);
+      const previewBox = document.getElementById(previewImgId + '_box');
+      if (previewEl && previewBox) {
+        previewEl.src = e.target.result;
+        previewBox.classList.remove('hidden');
+      }
+      delete capturedBlobMap[input.id];
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+function removeImagePreview(boxId, imgId, inputId) {
+  document.getElementById(boxId)?.classList.add('hidden');
+  const img = document.getElementById(imgId);
+  if (img) img.src = '';
+  const input = document.getElementById(inputId);
+  if (input) input.value = '';
+  delete capturedBlobMap[inputId];
 }
 
 // ==========================================
