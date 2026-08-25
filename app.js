@@ -43,7 +43,7 @@ async function apiPost(action, data = {}) {
 }
 
 // ==========================================
-// 🗺️ Leaflet Map Initializer (ปรับปรุงชั้นดาวเทียมให้สบายตา คมชัด)
+// 🗺️ Leaflet Map Initializer (Minimal & Ultra-Clean Satellite)
 // ==========================================
 function initMap() {
   try {
@@ -56,21 +56,28 @@ function initMap() {
       attribution: '&copy; CartoDB'
     });
 
-    // 2.1 ชั้นภาพถ่ายดาวเทียมแบบคลีน (ลดความจัดจ้านของสี)
+    // 2.1 ชั้นภาพถ่ายดาวเทียมความละเอียดสูง (Esri World Imagery)
     const satBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
       attribution: '&copy; Esri World Imagery',
-      className: 'clean-satellite-tiles' // ผูกคลาสสำหรับปรับแต่งโทนสี
+      className: 'clean-satellite-tiles'
     });
 
-    // 2.2 ชั้นเส้นทางถนน ซอย และชื่อสถานที่ภาษาไทยแบบคมชัด
-    const satLabels = L.tileLayer('https://mt1.google.com/vt/lyrs=h&hl=th&x={x}&y={y}&z={z}', {
+    // 2.2 ชั้นโครงข่ายถนนเฉพาะเส้นทางหลัก (Esri Transportation / Clean Roads)
+    const satRoads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      opacity: 0.75
+    });
+
+    // 2.3 ชั้นป้ายชื่อเฉพาะ "ถนนและเขตสำคัญ" (Carto Clean Labels Only - ตัดร้านค้าและสถานที่ย่อยออกเด็ดขาด)
+    const satLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
       maxZoom: 20,
-      attribution: '&copy; Google Maps'
+      subdomains: 'abcd',
+      className: 'clean-satellite-labels'
     });
 
-    // 2.3 รวมเป็นชั้นดาวเทียมแบบไฮบริดคลีน (Clean Hybrid Satellite)
-    const cleanSatelliteLayer = L.layerGroup([satBase, satLabels]);
+    // 2.4 รวมเป็นชั้นดาวเทียมแบบมินิมอล สะอาดตา ไร้สิ่งรบกวน
+    const cleanSatelliteLayer = L.layerGroup([satBase, satRoads, satLabels]);
 
     // สร้าง Map Object
     map = L.map('map', {
@@ -85,7 +92,7 @@ function initMap() {
     // กล่องสลับมุมมองแผนที่
     L.control.layers({
       "🗺️ แผนที่ถนน": streetLayer,
-      "🛰️ ภาพดาวเทียม": cleanSatelliteLayer
+      "🛰️ ภาพดาวเทียม (Minimal)": cleanSatelliteLayer
     }, null, { position: 'topleft' }).addTo(map);
 
     setTimeout(() => { map.invalidateSize(); }, 300);
