@@ -58,3 +58,19 @@ body {
 .clean-satellite-labels {
   filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.85)) contrast(1.15);
 }
+
+/* 🗺️ เลเยอร์ภาพถ่ายดาวเทียมความคมชัดสูง */
+.clean-satellite-tiles {
+  filter: brightness(0.88) contrast(1.08) saturate(0.85);
+}
+
+.clean-satellite-labels {
+  filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.85)) contrast(1.15);
+}
+
+/* 🖼️ สไตล์รองรับการหมุน/ปรับสัดส่วนภาพซ้อนบนแผนที่ */
+.leaflet-image-layer.custom-transform-overlay {
+  transform-origin: center center;
+  transition: opacity 0.15s ease, filter 0.15s ease;
+  pointer-events: auto;
+}
