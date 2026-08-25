@@ -7,7 +7,7 @@ let masterDisplayList = [];
 let globalReportCounts = {};
 let currentUserCode = "";
 let indexRawData = [], indexFilteredData = [], indexHeaders = [];
-let compressedImageMap = {}; // คลังเก็บ Base64 ของรูปภาพที่เลือก/ถ่าย
+let compressedImageMap = {};
 
 // ==========================================
 // 🚀 Lifecycle Initializer
@@ -43,9 +43,6 @@ async function apiPost(action, data = {}) {
 }
 
 // ==========================================
-// 🗺️ Leaflet Map Initializer
-// ==========================================
-// ==========================================
 // 🗺️ Leaflet Map Initializer (Minimal & Ultra-Clean Satellite)
 // ==========================================
 function initMap() {
@@ -53,36 +50,30 @@ function initMap() {
     const mapContainer = document.getElementById('map');
     if (!mapContainer || map) return;
 
-    // 1. แผนที่ถนนแบบ Clean Standard (Carto Voyager)
     const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       maxZoom: 20,
       attribution: '&copy; CartoDB'
     });
 
-    // 2.1 ชั้นภาพถ่ายดาวเทียมความละเอียดสูง (Esri World Imagery)
     const satBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
       attribution: '&copy; Esri World Imagery',
       className: 'clean-satellite-tiles'
     });
 
-    // 2.2 ชั้นโครงข่ายถนนเฉพาะเส้นทางหลัก (Esri Transportation / Clean Roads)
     const satRoads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
       opacity: 0.75
     });
 
-    // 2.3 ชั้นป้ายชื่อเฉพาะ "ถนนและเขตสำคัญ" (Carto Clean Labels Only - ตัดร้านค้าและสถานที่ย่อยออกเด็ดขาด)
     const satLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
       maxZoom: 20,
       subdomains: 'abcd',
       className: 'clean-satellite-labels'
     });
 
-    // 2.4 รวมเป็นชั้นดาวเทียมแบบมินิมอล สะอาดตา ไร้สิ่งรบกวน
     const cleanSatelliteLayer = L.layerGroup([satBase, satRoads, satLabels]);
 
-    // สร้าง Map Object
     map = L.map('map', {
       center: [13.745, 100.62],
       zoom: 11,
@@ -92,7 +83,6 @@ function initMap() {
     markersLayer = L.markerClusterGroup({ maxClusterRadius: 50, disableClusteringAtZoom: 17 });
     markersLayer.addTo(map);
 
-    // กล่องสลับมุมมองแผนที่
     L.control.layers({
       "🗺️ แผนที่ถนน": streetLayer,
       "🛰️ ภาพดาวเทียม (Minimal)": cleanSatelliteLayer
@@ -139,11 +129,6 @@ function handleBMAMaskOverlay(show, selectedLoc) {
   } catch(err) {}
 }
 
-// ==========================================
-// 🗺️ ฟังก์ชันตรวจสอบพิกัดตกใน Polygon และดรอปแสงพื้นที่ชำรุด
-// ==========================================
-
-// ฟังก์ชัน Ray-casting Algorithm สำหรับตรวจสอบว่าจุด (lat, lng) อยู่ใน Polygon หรือไม่
 function isPointInPolygon(point, vs) {
   const x = point[0], y = point[1];
   let inside = false;
@@ -162,10 +147,9 @@ function checkFeatureContainsDamaged(feature, damagedPoints) {
   if (!geom) return false;
 
   for (let p = 0; p < damagedPoints.length; p++) {
-    const pt = [damagedPoints[p].lat, damagedPoints[p].lng]; // [Lat, Lng]
+    const pt = [damagedPoints[p].lat, damagedPoints[p].lng];
 
     if (geom.type === 'Polygon') {
-      // GeoJSON พิกัดเป็น [Lng, Lat] ต้องสลับเป็น [Lat, Lng] เพื่อตรวจ
       const poly = geom.coordinates[0].map(c => [c[1], c[0]]);
       if (isPointInPolygon(pt, poly)) return true;
     } else if (geom.type === 'MultiPolygon') {
@@ -179,7 +163,6 @@ function checkFeatureContainsDamaged(feature, damagedPoints) {
 }
 
 function drawBMAData(data, targetLocName) {
-  // 1. ดึงพิกัดของเสาไฟทั้งหมดที่สถานะเป็น "ชำรุด"
   const damagedPoints = [];
   allData.forEach(item => {
     const st = (item.Status || item.status || '').toString().trim();
@@ -192,7 +175,6 @@ function drawBMAData(data, targetLocName) {
     }
   });
 
-  // ค้นหาชื่อเขตที่เลือก (ถ้ามี)
   let matchingDistrictName = "";
   if (targetLocName && targetLocName !== "all" && allData.length > 0) {
     const matchedAsset = allData.find(x => x['ที่ตั้ง'] === targetLocName);
@@ -206,18 +188,14 @@ function drawBMAData(data, targetLocName) {
     return pointsCount <= 5;
   }
 
-  // 2. วาดเลเยอร์เขตกรุงเทพฯ
   bmaDistrictsLayer = L.geoJSON(data, {
     filter: feature => !isTrashBox(feature),
     style: feature => {
       const props = feature.properties || {};
       const dName = props.dname || props.dist_th || props.name || '';
       const isSelected = matchingDistrictName && dName.toString().includes(matchingDistrictName);
-
-      // ตรวจสอบด้วยพิกัดทางภูมิศาสตร์ว่ามีจุดชำรุดอยู่ในเขตนี้หรือไม่
       const hasDamaged = checkFeatureContainsDamaged(feature, damagedPoints);
 
-      // กรณีที่ 1: เขตที่เลือกกรอง (เน้นขอบเขียว)
       if (isSelected) {
         return {
           color: '#059669',
@@ -227,17 +205,15 @@ function drawBMAData(data, targetLocName) {
         };
       }
 
-      // 🌟 กรณีที่ 2: เขตที่มีจุดชำรุด -> ดรอปพื้นที่ให้มืดลง (Dark Tint)
       if (hasDamaged) {
         return {
-          color: '#e11d48',       // เส้นขอบสีแดงเตือนภัย
+          color: '#e11d48',
           weight: 2.0,
-          fillColor: '#0f172a',   // พื้นหลังมืดลง
-          fillOpacity: 0.35       // ความเข้มเงากำลังดี เห็นถนนและหมุดชัดเจน
+          fillColor: '#0f172a',
+          fillOpacity: 0.35
         };
       }
 
-      // กรณีที่ 3: เขตปกติ -> สว่างใส
       return {
         color: '#047857',
         weight: 1.0,
@@ -269,7 +245,6 @@ function drawBMAData(data, targetLocName) {
     }
   }).addTo(map);
 
-  // 3. ม่านบังตาด้านนอกขอบเขตกรุงเทพฯ (Hole Mask)
   const worldOuterRing = [
     [-90, -180],
     [-90, 180],
@@ -295,107 +270,6 @@ function drawBMAData(data, targetLocName) {
     fillOpacity: 0.52,
     interactive: false
   }).addTo(map);
-}
-
-  function isTrashBox(feature) {
-    const geom = feature.geometry;
-    if (!geom) return true;
-    let pointsCount = (geom.type === 'Polygon') ? geom.coordinates[0].length : ((geom.type === 'MultiPolygon') ? geom.coordinates[0][0].length : 0);
-    return pointsCount <= 5;
-  }
-
-  // 1. วาดเส้นขอบเขตและสีไฮไลต์ของแต่ละเขต (ด้านในโปร่งใสสว่าง)
-  bmaDistrictsLayer = L.geoJSON(data, {
-    filter: feature => !isTrashBox(feature),
-    style: feature => {
-      const props = feature.properties || {};
-      const dName = props.dname || props.dist_th || props.name || '';
-      if (matchingDistrictName && dName.toString().includes(matchingDistrictName)) {
-        return { color: '#059669', weight: 2.5, fillColor: '#34d399', fillOpacity: 0.15 };
-      }
-      return { color: '#047857', weight: 1.2, fillColor: '#ffffff', fillOpacity: 0.0 };
-    },
-    onEachFeature: function(feature, layer) {
-      const props = feature.properties || {};
-      let districtName = props.dname || props.dist_th || '';
-      if (districtName) {
-        if (!districtName.includes('เขต')) districtName = 'เขต' + districtName;
-        layer.on('click', function(e) {
-          L.popup()
-            .setLatLng(e.latlng)
-            .setContent('<div style="font-family:\'Kanit\',sans-serif; font-size:14px; font-weight:bold; color:#065f46; padding:4px;">📍 ' + districtName + '</div>')
-            .openOn(map);
-        });
-      }
-    }
-  }).addTo(map);
-
-  // 2. สร้างม่านเงาดำบังพื้นที่ภายนอกกรุงเทพฯ (Hole Mask: วงนอกมืด - วงในกทม.เจาะรูสว่าง)
-  const worldOuterRing = [
-    [-90, -180],
-    [-90, 180],
-    [90, 180],
-    [90, -180]
-  ];
-  
-  const maskRings = [worldOuterRing];
-
-  data.features.forEach(feature => {
-    if (isTrashBox(feature)) return;
-    const geom = feature.geometry;
-    if (geom.type === 'Polygon') {
-      geom.coordinates.forEach(ring => {
-        maskRings.push(ring.map(c => [c[1], c[0]]));
-      });
-    } else if (geom.type === 'MultiPolygon') {
-      geom.coordinates.forEach(polygon => {
-        polygon.forEach(ring => {
-          maskRings.push(ring.map(c => [c[1], c[0]]));
-        });
-      });
-    }
-  });
-
-  bmaMaskLayer = L.polygon(maskRings, {
-    stroke: false,
-    fillColor: '#0f172a',
-    fillOpacity: 0.5,
-    interactive: false
-  }).addTo(map);
-}
-
-  function isTrashBox(feature) {
-    const geom = feature.geometry;
-    if (!geom) return true;
-    let pointsCount = (geom.type === 'Polygon') ? geom.coordinates[0].length : ((geom.type === 'MultiPolygon') ? geom.coordinates[0][0].length : 0);
-    return pointsCount <= 5;
-  }
-
-  bmaDistrictsLayer = L.geoJSON(data, {
-    filter: feature => !isTrashBox(feature),
-    style: feature => {
-      const props = feature.properties || {};
-      const dName = props.dname || props.dist_th || props.name || '';
-      if (matchingDistrictName && dName.toString().includes(matchingDistrictName)) {
-        return { color: '#059669', weight: 2.5, fillColor: '#34d399', fillOpacity: 0.15 };
-      }
-      return { color: '#047857', weight: 1.2, fillColor: '#10b981', fillOpacity: 0.02 };
-    }
-  }).addTo(map);
-
-  const worldOuterRing = [[90, -180], [90, 180], [-90, -180], [-90, -180]];
-  const maskRings = [worldOuterRing];
-  data.features.forEach(feature => {
-    if (isTrashBox(feature)) return;
-    const geom = feature.geometry;
-    if (geom.type === 'Polygon') {
-      geom.coordinates.forEach(ring => maskRings.push(ring.map(c => [c[1], c[0]])));
-    } else if (geom.type === 'MultiPolygon') {
-      geom.coordinates.forEach(polygon => polygon.forEach(ring => maskRings.push(ring.map(c => [c[1], c[0]]))));
-    }
-  });
-
-  bmaMaskLayer = L.polygon(maskRings, { stroke: false, fillColor: '#0f172a', fillOpacity: 0.45, interactive: false }).addTo(map);
 }
 
 // ==========================================
@@ -838,7 +712,7 @@ async function handleTechSubmit(e) {
     assetId: document.getElementById('techEquipId').value,
     details: completeDetails,
     technicianName: document.getElementById('techName').value,
-    imageAfter: compressedImageMap['imageAfterFile'] || null
+    imageAfter: compressedImageMap['imageAfterFile'] ? compressedImageMap['imageAfterFile'].base64 : null
   };
 
   showLoadingModal("🔧 กำลังบันทึกปิดงานซ่อม...", "ระบบกำลังประมวลผลรูปภาพและข้อมูล");
@@ -1225,7 +1099,6 @@ function handleNativeImage(input, previewImgId, companionInputId) {
   if (input.files && input.files[0]) {
     const file = input.files[0];
     
-    // บีบอัดรูปภาพทันที
     compressImage(file, base64 => {
       const previewEl = document.getElementById(previewImgId);
       const previewBox = document.getElementById(previewImgId + '_box');
@@ -1234,7 +1107,6 @@ function handleNativeImage(input, previewImgId, companionInputId) {
         previewBox.classList.remove('hidden');
       }
 
-      // บันทึกลง Map โดยอ้างอิงจากคีย์กลาง
       const key = input.id.includes('Capture') ? input.id.replace('Capture', 'File') : input.id;
       compressedImageMap[key] = {
         base64: base64,
@@ -1242,7 +1114,6 @@ function handleNativeImage(input, previewImgId, companionInputId) {
         type: "image/jpeg"
       };
 
-      // ล้างค่าใน input คู่ขนานเพื่อไม่ให้ส่งไฟล์ซ้ำ
       const companion = document.getElementById(companionInputId);
       if (companion) companion.value = '';
     });
