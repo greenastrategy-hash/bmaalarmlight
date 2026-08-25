@@ -139,12 +139,163 @@ function handleBMAMaskOverlay(show, selectedLoc) {
   } catch(err) {}
 }
 
+// ==========================================
+// 🗺️ ฟังก์ชันตรวจสอบพิกัดตกใน Polygon และดรอปแสงพื้นที่ชำรุด
+// ==========================================
+
+// ฟังก์ชัน Ray-casting Algorithm สำหรับตรวจสอบว่าจุด (lat, lng) อยู่ใน Polygon หรือไม่
+function isPointInPolygon(point, vs) {
+  const x = point[0], y = point[1];
+  let inside = false;
+  for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+    const xi = vs[i][0], yi = vs[i][1];
+    const xj = vs[j][0], yj = vs[j][1];
+    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function checkFeatureContainsDamaged(feature, damagedPoints) {
+  if (!damagedPoints || damagedPoints.length === 0) return false;
+  const geom = feature.geometry;
+  if (!geom) return false;
+
+  for (let p = 0; p < damagedPoints.length; p++) {
+    const pt = [damagedPoints[p].lat, damagedPoints[p].lng]; // [Lat, Lng]
+
+    if (geom.type === 'Polygon') {
+      // GeoJSON พิกัดเป็น [Lng, Lat] ต้องสลับเป็น [Lat, Lng] เพื่อตรวจ
+      const poly = geom.coordinates[0].map(c => [c[1], c[0]]);
+      if (isPointInPolygon(pt, poly)) return true;
+    } else if (geom.type === 'MultiPolygon') {
+      for (let k = 0; k < geom.coordinates.length; k++) {
+        const poly = geom.coordinates[k][0].map(c => [c[1], c[0]]);
+        if (isPointInPolygon(pt, poly)) return true;
+      }
+    }
+  }
+  return false;
+}
+
 function drawBMAData(data, targetLocName) {
+  // 1. ดึงพิกัดของเสาไฟทั้งหมดที่สถานะเป็น "ชำรุด"
+  const damagedPoints = [];
+  allData.forEach(item => {
+    const st = (item.Status || item.status || '').toString().trim();
+    if (st === 'ชำรุด' && item.Lat && item.Lng) {
+      const lat = parseFloat(item.Lat);
+      const lng = parseFloat(item.Lng);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        damagedPoints.push({ lat: lat, lng: lng, id: item.ID });
+      }
+    }
+  });
+
+  // ค้นหาชื่อเขตที่เลือก (ถ้ามี)
   let matchingDistrictName = "";
   if (targetLocName && targetLocName !== "all" && allData.length > 0) {
     const matchedAsset = allData.find(x => x['ที่ตั้ง'] === targetLocName);
     if (matchedAsset && matchedAsset.Note) matchingDistrictName = matchedAsset.Note.toString().trim();
   }
+
+  function isTrashBox(feature) {
+    const geom = feature.geometry;
+    if (!geom) return true;
+    let pointsCount = (geom.type === 'Polygon') ? geom.coordinates[0].length : ((geom.type === 'MultiPolygon') ? geom.coordinates[0][0].length : 0);
+    return pointsCount <= 5;
+  }
+
+  // 2. วาดเลเยอร์เขตกรุงเทพฯ
+  bmaDistrictsLayer = L.geoJSON(data, {
+    filter: feature => !isTrashBox(feature),
+    style: feature => {
+      const props = feature.properties || {};
+      const dName = props.dname || props.dist_th || props.name || '';
+      const isSelected = matchingDistrictName && dName.toString().includes(matchingDistrictName);
+
+      // ตรวจสอบด้วยพิกัดทางภูมิศาสตร์ว่ามีจุดชำรุดอยู่ในเขตนี้หรือไม่
+      const hasDamaged = checkFeatureContainsDamaged(feature, damagedPoints);
+
+      // กรณีที่ 1: เขตที่เลือกกรอง (เน้นขอบเขียว)
+      if (isSelected) {
+        return {
+          color: '#059669',
+          weight: 2.5,
+          fillColor: '#34d399',
+          fillOpacity: 0.15
+        };
+      }
+
+      // 🌟 กรณีที่ 2: เขตที่มีจุดชำรุด -> ดรอปพื้นที่ให้มืดลง (Dark Tint)
+      if (hasDamaged) {
+        return {
+          color: '#e11d48',       // เส้นขอบสีแดงเตือนภัย
+          weight: 2.0,
+          fillColor: '#0f172a',   // พื้นหลังมืดลง
+          fillOpacity: 0.35       // ความเข้มเงากำลังดี เห็นถนนและหมุดชัดเจน
+        };
+      }
+
+      // กรณีที่ 3: เขตปกติ -> สว่างใส
+      return {
+        color: '#047857',
+        weight: 1.0,
+        fillColor: '#ffffff',
+        fillOpacity: 0.0
+      };
+    },
+    onEachFeature: function(feature, layer) {
+      const props = feature.properties || {};
+      let districtName = props.dname || props.dist_th || '';
+      if (districtName) {
+        if (!districtName.includes('เขต')) districtName = 'เขต' + districtName;
+        const hasDamaged = checkFeatureContainsDamaged(feature, damagedPoints);
+        
+        layer.on('click', function(e) {
+          L.popup()
+            .setLatLng(e.latlng)
+            .setContent(`
+              <div style="font-family:'Kanit',sans-serif; padding:4px;">
+                <div style="font-size:14px; font-weight:bold; color:#065f46;">📍 ${districtName}</div>
+                <div style="font-size:11px; margin-top:2px; color:${hasDamaged ? '#e11d48; font-weight:bold;' : '#64748b;'}">
+                  ${hasDamaged ? '⚠️ ตรวจพบครุภัณฑ์ชำรุดในพื้นที่' : '🟢 การทำงานปกติ'}
+                </div>
+              </div>
+            `)
+            .openOn(map);
+        });
+      }
+    }
+  }).addTo(map);
+
+  // 3. ม่านบังตาด้านนอกขอบเขตกรุงเทพฯ (Hole Mask)
+  const worldOuterRing = [
+    [-90, -180],
+    [-90, 180],
+    [90, 180],
+    [90, -180]
+  ];
+  
+  const maskRings = [worldOuterRing];
+
+  data.features.forEach(feature => {
+    if (isTrashBox(feature)) return;
+    const geom = feature.geometry;
+    if (geom.type === 'Polygon') {
+      geom.coordinates.forEach(ring => maskRings.push(ring.map(c => [c[1], c[0]])));
+    } else if (geom.type === 'MultiPolygon') {
+      geom.coordinates.forEach(polygon => polygon.forEach(ring => maskRings.push(ring.map(c => [c[1], c[0]]))));
+    }
+  });
+
+  bmaMaskLayer = L.polygon(maskRings, {
+    stroke: false,
+    fillColor: '#0f172a',
+    fillOpacity: 0.52,
+    interactive: false
+  }).addTo(map);
+}
 
   function isTrashBox(feature) {
     const geom = feature.geometry;
