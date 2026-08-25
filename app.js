@@ -103,12 +103,31 @@ function handleBMAMaskOverlay(show, selectedLoc) {
   } catch(err) {}
 }
 
+// ==========================================
+// 🗺️ ฟังก์ชันวาดเส้นแบ่งเขตกรุงเทพฯ + มืดลงเฉพาะเขตที่มีงานชำรุด
+// ==========================================
 function drawBMAData(data, targetLocName) {
+  // 1. ค้นหาชื่อเขตของสถานที่ที่กำลังเลือกกรองอยู่ (ถ้ามี)
   let matchingDistrictName = "";
   if (targetLocName && targetLocName !== "all" && allData.length > 0) {
     const matchedAsset = allData.find(x => x['ที่ตั้ง'] === targetLocName);
-    if (matchedAsset && matchedAsset.Note) matchingDistrictName = matchedAsset.Note.toString().trim();
+    if (matchedAsset && matchedAsset.Note) {
+      matchingDistrictName = matchedAsset.Note.toString().trim();
+    }
   }
+
+  // 2. รวบรวมรายชื่อ "เขต" ทั้งหมดที่มีครุภัณฑ์สถานะ "ชำรุด"
+  const damagedDistrictsSet = new Set();
+  allData.forEach(item => {
+    const st = (item.Status || item.status || '').toString().trim();
+    if (st === 'ชำรุด') {
+      // ดึงชื่อเขตจาก Note หรือ ที่ตั้ง
+      const districtNote = (item.Note || '').toString().trim();
+      const locationName = (item['ที่ตั้ง'] || '').toString().trim();
+      if (districtNote) damagedDistrictsSet.add(districtNote);
+      if (locationName) damagedDistrictsSet.add(locationName);
+    }
+  });
 
   function isTrashBox(feature) {
     const geom = feature.geometry;
@@ -117,33 +136,84 @@ function drawBMAData(data, targetLocName) {
     return pointsCount <= 5;
   }
 
-  // 1. วาดเส้นขอบเขตและสีไฮไลต์ของแต่ละเขต (ด้านในโปร่งใสสว่าง)
+  // 3. วาดเลเยอร์เขตกรุงเทพฯ พร้อมเงื่อนไขการหรี่แสงเฉพาะเขตที่มีชำรุด
   bmaDistrictsLayer = L.geoJSON(data, {
     filter: feature => !isTrashBox(feature),
     style: feature => {
       const props = feature.properties || {};
       const dName = props.dname || props.dist_th || props.name || '';
-      if (matchingDistrictName && dName.toString().includes(matchingDistrictName)) {
-        return { color: '#059669', weight: 2.5, fillColor: '#34d399', fillOpacity: 0.15 };
+      
+      // ตรวจสอบว่าเขตนี้เป็นเขตที่กำลังเลือกจากตัวกรองหรือไม่
+      const isSelected = matchingDistrictName && dName.toString().includes(matchingDistrictName);
+
+      // ตรวจสอบว่าเขตนี้มีเสาไฟชำรุดอยู่หรือไม่
+      let hasDamagedAsset = false;
+      damagedDistrictsSet.forEach(name => {
+        if (name && dName.toString().includes(name.replace('เขต', '').trim())) {
+          hasDamagedAsset = true;
+        }
+      });
+
+      // 🌟 กรณีที่ 1: เป็นเขตที่ผู้ใช้กดเลือกในตัวกรอง (เน้นสีเขียวมรกต)
+      if (isSelected) {
+        return {
+          color: '#059669',
+          weight: 2.5,
+          fillColor: '#34d399',
+          fillOpacity: 0.18
+        };
       }
-      return { color: '#047857', weight: 1.2, fillColor: '#ffffff', fillOpacity: 0.0 };
+
+      // 🌟 กรณีที่ 2: เขตนี้มีอุปกรณ์ "ชำรุด" -> หรี่พื้นที่ให้มืดลงเล็กน้อย แต่ยังเห็นแผนที่และหมุดชัดเจน
+      if (hasDamagedAsset) {
+        return {
+          color: '#e11d48',       // เส้นขอบสีกุหลาบ/แดงเตือนภัยแบบบาง
+          weight: 1.5,
+          fillColor: '#0f172a',   // เฉดเงามืด Slate-900 หรี่แสงลง
+          fillOpacity: 0.32       // ความเข้มเงามืดพอดี ไม่บดบังรายละเอียดแผนที่
+        };
+      }
+
+      // 🌟 กรณีที่ 3: เขตปกติ ไม่มีจุดชำรุด -> พื้นที่สว่างใส 100%
+      return {
+        color: '#047857',
+        weight: 1.0,
+        fillColor: '#ffffff',
+        fillOpacity: 0.0
+      };
     },
     onEachFeature: function(feature, layer) {
       const props = feature.properties || {};
       let districtName = props.dname || props.dist_th || '';
       if (districtName) {
         if (!districtName.includes('เขต')) districtName = 'เขต' + districtName;
+        
+        // นับจำนวนจุดชำรุดในเขตนี้เพื่อนำไปแสดงใน Popup
+        let damagedCountInDistrict = 0;
+        allData.forEach(item => {
+          const st = (item.Status || item.status || '').toString().trim();
+          const dNote = (item.Note || '').toString().trim();
+          if (st === 'ชำรุด' && dNote && districtName.includes(dNote.replace('เขต', '').trim())) {
+            damagedCountInDistrict++;
+          }
+        });
+
         layer.on('click', function(e) {
-          L.popup()
-            .setLatLng(e.latlng)
-            .setContent('<div style="font-family:\'Kanit\',sans-serif; font-size:14px; font-weight:bold; color:#065f46; padding:4px;">📍 ' + districtName + '</div>')
-            .openOn(map);
+          let popupContent = `
+            <div style="font-family:'Kanit',sans-serif; padding:4px; min-width:140px;">
+              <div style="font-size:14px; font-weight:bold; color:#065f46;">📍 ${districtName}</div>
+              <div style="font-size:11px; margin-top:3px; color:${damagedCountInDistrict > 0 ? '#e11d48; font-weight:bold;' : '#64748b;'}">
+                ${damagedCountInDistrict > 0 ? `⚠️ มีจุดชำรุด ${damagedCountInDistrict} รายการ` : '🟢 สภาพการทำงานปกติทุกจุด'}
+              </div>
+            </div>
+          `;
+          L.popup().setLatLng(e.latlng).setContent(popupContent).openOn(map);
         });
       }
     }
   }).addTo(map);
 
-  // 2. สร้างม่านเงาดำบังพื้นที่ภายนอกกรุงเทพฯ (Hole Mask: วงนอกมืด - วงในกทม.เจาะรูสว่าง)
+  // 4. ม่านบังตาด้านนอกขอบเขตกรุงเทพฯ (Inversion Hole Mask)
   const worldOuterRing = [
     [-90, -180],
     [-90, 180],
@@ -172,7 +242,7 @@ function drawBMAData(data, targetLocName) {
   bmaMaskLayer = L.polygon(maskRings, {
     stroke: false,
     fillColor: '#0f172a',
-    fillOpacity: 0.5,
+    fillOpacity: 0.52,
     interactive: false
   }).addTo(map);
 }
