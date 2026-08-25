@@ -4,27 +4,33 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ระบบบริหารจัดการไฟฟ้าส่องสว่าง</title>
+  
+  <!-- ป้องกัน Error favicon 404 ด้วย SVG Emoji -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💡</text></svg>">
 
-  <!-- Tailwind & Leaflet & Icons -->
+  <!-- Tailwind CSS & Leaflet & MarkerCluster & Phosphor Icons -->
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  
+  <!-- Custom CSS -->
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased flex flex-col min-h-screen">
 
+  <!-- Floating Toast Notification -->
   <div id="quietAlertContainer" class="quiet-alert">
     <span class="text-emerald-400">⚡</span>
     <span id="quietAlertText">ระบบพิกัดพร้อมทำงาน</span>
   </div>
 
-  <nav class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-3.5 shadow-md flex justify-between items-center">
+  <!-- Navbar -->
+  <nav class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-3.5 shadow-md flex justify-between items-center sticky top-0 z-[1000]">
     <div class="flex items-center space-x-2">
       <span class="text-xl">💡</span>
-      <h1 class="text-md font-bold tracking-wide">ระบบบริหารจัดการไฟฟ้าส่องสว่าง</h1>
+      <h1 class="text-sm sm:text-base font-bold tracking-wide">ระบบบริหารจัดการไฟฟ้าส่องสว่าง</h1>
     </div>
     <div class="flex items-center gap-2">
       <span id="authSuccessBadge" class="text-xs bg-emerald-50/20 text-emerald-100 px-2.5 py-1 rounded-md border border-emerald-500/30 hidden font-medium">● สิทธิ์เจ้าหน้าที่</span>
@@ -50,28 +56,9 @@
   <div id="mainDashboardGrid" class="p-3 grid grid-cols-1 gap-4 transition-all duration-300 items-start">
     <div id="mapWrapper" class="lg:col-span-12 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-3 transition-all duration-300">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-        <div class="flex items-center gap-2">
-          <h2 class="text-xs font-bold text-slate-900 flex items-center gap-1"><i class="ph-bold ph-map-trifold text-base text-emerald-700"></i> แผนที่ระบบพิกัดเสาไฟ</h2>
-          
-          <!-- 🌟 ปุ่มเปิดกล่องเครื่องมือแทรกภาพซ้อนแปลน -->
-          <button type="button" onclick="toggleOverlayControlPanel()" class="bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-slate-300 flex items-center gap-1 transition-colors cursor-pointer">
-            <i class="ph-bold ph-image-square text-emerald-600"></i> แทรกภาพซ้อนแปลน
-          </button>
-        </div>
-
-        <div class="flex flex-wrap gap-1.5 w-full sm:w-auto items-center">
-          <!-- 🌟 ตัวเลือก 5 ธีมสีหมุด -->
-          <div class="flex items-center bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 gap-1.5">
-            <span class="text-[10px] font-bold text-slate-600 flex items-center gap-0.5"><i class="ph-bold ph-palette"></i> ธีมสี:</span>
-            <select id="pinColorThemeSelect" onchange="changePinColorTheme(this.value)" class="bg-transparent text-[11px] font-bold text-slate-800 outline-none cursor-pointer">
-              <option value="emerald">🌿 มรกต (Emerald)</option>
-              <option value="cyber">🌌 ไฮคอนทราสต์ (Cyber)</option>
-              <option value="sunset">🌇 อุ่นซันเซ็ต (Sunset)</option>
-              <option value="purple">🍇 โมเดิร์นม่วง (Purple)</option>
-              <option value="ocean">💎 โอเชียนบลู (Ocean)</option>
-            </select>
-          </div>
-
+        <h2 class="text-xs font-bold text-slate-900 flex items-center gap-1"><i class="ph-bold ph-map-trifold text-base text-emerald-700"></i> แผนที่ระบบพิกัดเสาไฟ</h2>
+        <div class="flex flex-wrap gap-1.5 w-full sm:w-auto">
+          <!-- 🌟 ตัวกรองไดนามิก: เปลี่ยนหน่วยงาน -> อัปเดตสถานที่ทันที -->
           <select id="departmentFilter" onchange="onDepartmentFilterChange()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none"></select>
           <select id="locationFilter" onchange="applyFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none"></select>
           <select id="statusFilter" onchange="applyFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-bold text-slate-700 outline-none">
@@ -83,78 +70,6 @@
           </select>
         </div>
       </div>
-
-      <!-- 🌟 แผงควบคุมการแทรกภาพซ้อนบนแผนที่ (Map Image Overlay Studio) -->
-      <div id="imageOverlayPanel" class="hidden bg-slate-900 text-slate-100 p-3.5 rounded-xl border border-slate-700 space-y-3 animate-fade-in text-xs">
-        <div class="flex justify-between items-center border-b border-slate-700 pb-2">
-          <div class="flex items-center gap-1.5 font-bold text-emerald-400">
-            <i class="ph-bold ph-sliders text-base"></i> เครื่องมือปรับแต่งภาพแปลนซ้อนทับ (Overlay Calibration)
-          </div>
-          <button type="button" onclick="toggleOverlayControlPanel()" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
-          <div>
-            <label class="block text-slate-400 text-[10px] font-bold mb-1">📁 เลือกไฟล์ภาพแปลน/ภาพถ่าย</label>
-            <input type="file" id="overlayFileInput" accept="image/*" onchange="handleOverlayFileUpload(this)" class="w-full text-slate-300 text-[11px] file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-bold file:bg-emerald-600 file:text-white hover:file:bg-emerald-700 cursor-pointer">
-          </div>
-
-          <div>
-            <div class="flex justify-between text-[10px] text-slate-300 font-bold mb-1">
-              <span>👁️ ความโปร่งใส/คมชัด:</span>
-              <span id="overlayOpacityVal" class="text-emerald-400">75%</span>
-            </div>
-            <input type="range" id="overlayOpacityRange" min="0.1" max="1.0" step="0.05" value="0.75" oninput="updateOverlayTransform()" class="w-full accent-emerald-500 cursor-pointer">
-          </div>
-
-          <div>
-            <div class="flex justify-between text-[10px] text-slate-300 font-bold mb-1">
-              <span>🔄 การหมุน / ลาดเอียง (องศา):</span>
-              <span id="overlayAngleVal" class="text-emerald-400">0°</span>
-            </div>
-            <input type="range" id="overlayAngleRange" min="-180" max="180" step="1" value="0" oninput="updateOverlayTransform()" class="w-full accent-emerald-500 cursor-pointer">
-          </div>
-
-          <div>
-            <div class="flex justify-between text-[10px] text-slate-300 font-bold mb-1">
-              <span>📏 ขนาดย่อ-ขยายรวม:</span>
-              <span id="overlayScaleVal" class="text-emerald-400">1.0x</span>
-            </div>
-            <input type="range" id="overlayScaleRange" min="0.2" max="5.0" step="0.05" value="1.0" oninput="updateOverlayTransform()" class="w-full accent-emerald-500 cursor-pointer">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-slate-800 pt-2 items-center">
-          <div>
-            <div class="flex justify-between text-[10px] text-slate-300 font-bold mb-1">
-              <span>↔️ ปรับความกว้าง (Width):</span>
-              <span id="overlayWidthVal" class="text-emerald-400">1.0x</span>
-            </div>
-            <input type="range" id="overlayWidthRange" min="0.3" max="4.0" step="0.05" value="1.0" oninput="updateOverlayTransform()" class="w-full accent-emerald-500 cursor-pointer">
-          </div>
-
-          <div>
-            <div class="flex justify-between text-[10px] text-slate-300 font-bold mb-1">
-              <span>↕️ ปรับความสูง (Height):</span>
-              <span id="overlayHeightVal" class="text-emerald-400">1.0x</span>
-            </div>
-            <input type="range" id="overlayHeightRange" min="0.3" max="4.0" step="0.05" value="1.0" oninput="updateOverlayTransform()" class="w-full accent-emerald-500 cursor-pointer">
-          </div>
-
-          <div class="flex items-center gap-2 justify-end pt-2 sm:pt-0">
-            <button type="button" onclick="snapOverlayToCurrentCenter()" class="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-600 px-2.5 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer flex items-center gap-1">
-              <i class="ph-bold ph-crosshair"></i> ย้ายมากลางจอ
-            </button>
-            <button type="button" onclick="resetOverlayTransform()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 px-2.5 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer">
-              รีเซ็ตค่า
-            </button>
-            <button type="button" onclick="removeMapOverlay()" class="bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-700 px-2.5 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer flex items-center gap-1">
-              <i class="ph-bold ph-trash"></i> ลบภาพ
-            </button>
-          </div>
-        </div>
-      </div>
-
       <div class="relative">
         <div id="map" class="rounded-xl overflow-hidden border"></div>
         <button type="button" onclick="resetMapToDefaultView()" title="โฟกัสกลับจุดเริ่มต้น" 
@@ -441,7 +356,7 @@
                   <div id="dynamicMaterialsList" class="space-y-1.5"></div>
                 </div>
                 
-                <!-- กล่องถ่ายภาพ / แนบไฟล์งานซ่อมเสร็จ -->
+                <!-- 🌟 กล่องถ่ายภาพ / แนบไฟล์งานซ่อมเสร็จ -->
                 <div>
                   <label class="block text-slate-600 font-bold mb-1 text-[11px]">📷 ภาพถ่ายหลักฐานงานซ่อมเสร็จสิ้น</label>
                   <div class="flex items-center gap-2">
@@ -763,6 +678,7 @@
     © 2026 ส่วนยุทธศาสตร์พื้นที่สีเขียว สำนักงานบริหารจัดการพื้นที่สีเขียว สำนักสิ่งแวดล้อม
   </footer>
 
+  <!-- Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
   <script src="js/config.js"></script>
