@@ -466,6 +466,9 @@ function openDetailsWorkspace(item) {
 
 function closeModal() { document.getElementById('detailsModal')?.classList.add('hidden'); }
 
+// ==========================================
+// 📜 แสดงประวัติการบำรุงรักษาอย่างละเอียด ( Timeline View )
+// ==========================================
 async function refreshHistoryView(equipId) {
   const container = document.getElementById('wsRepairHistoryContainer');
   if (!container) return;
@@ -476,10 +479,10 @@ async function refreshHistoryView(equipId) {
     const history = res.data || [];
     const searchKey = equipId.toString().trim().toUpperCase();
     
-    // 1. กรองประวัติทั้งหมดของครุภัณฑ์ ID นี้
+    // 1. กรองประวัติทั้งหมดของครุภัณฑ์ ID นี้ (รวมทุกสถานะ)
     const filtered = history.filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === searchKey);
 
-    // 2. เรียงลำดับไทม์ไลน์: ใบงานล่าสุดอยู่บนสุด
+    // 2. เรียงลำดับไทม์ไลน์: รายการล่าสุดอยู่บนสุด
     filtered.sort((a, b) => {
       const parseDate = (dStr) => {
         if (!dStr) return 0;
@@ -495,19 +498,24 @@ async function refreshHistoryView(equipId) {
     // อัปเดตรหัสใบงานในฟอร์มช่างกรณีมีใบงานค้าง
     const activeTicket = filtered.find(h => h.status === 'รอดำเนินการ' || h.status === 'รอจัดจ้าง');
     if (activeTicket) {
-      document.getElementById('techRepairId').value = activeTicket.repairId;
+      const techRepIdInput = document.getElementById('techRepairId');
       const badge = document.getElementById('techRepairIdBadge');
+      if (techRepIdInput) techRepIdInput.value = activeTicket.repairId;
       if (badge) {
         badge.innerText = `📋 ดำเนินการใบงาน: ${activeTicket.repairId} (${activeTicket.status})`;
         badge.classList.remove('hidden');
       }
     }
 
-    // สรุปยอดรวม
+    // Header สรุปสถิติ + ปุ่ม Export PDF รายงานไทม์ไลน์ประวัติ
     const summaryHtml = `
       <div class="bg-slate-100 text-slate-700 p-2.5 rounded-xl border border-slate-200 text-[11px] font-bold flex justify-between items-center mb-3 shadow-2xs w-full">
-        <span class="flex items-center gap-1"><i class="ph-bold ph-clock-counter-clockwise text-emerald-600"></i> ประวัติประมวลผลไทม์ไลน์ย้อนหลัง:</span>
-        <span class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full font-extrabold">${filtered.length} ใบงาน</span>
+        <span class="flex items-center gap-1"><i class="ph-bold ph-clock-counter-clockwise text-emerald-600"></i> ประวัติประมวลผลไทม์ไลน์: ${filtered.length} ใบงาน</span>
+        ${filtered.length > 0 ? `
+          <button type="button" onclick="exportHistoryPDF('${equipId}')" class="bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer">
+            <i class="ph-bold ph-file-pdf text-sm"></i> Export PDF
+          </button>
+        ` : ''}
       </div>
     `;
 
@@ -523,7 +531,7 @@ async function refreshHistoryView(equipId) {
       return;
     }
 
-    // 3. วนลูปแจงรายละเอียดทุกขั้นตอน ทุกหัวข้อ ทุกไฟล์แนบ
+    // 3. วนลูปแจงรายละเอียดทุกขั้นตอน + แสดงรูปภาพพรีวิว (Thumbnail)
     let timelineHtml = '';
     filtered.forEach((h) => {
       let badgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
@@ -537,21 +545,19 @@ async function refreshHistoryView(equipId) {
         accentBorder = 'border-l-amber-500';
       }
 
-      // 🔍 ถอดรหัสข้อความแยกตามขั้นตอน (Parsing Details)
+      // 🔍 ถอดรหัสข้อความแยกตามขั้นตอน
       let fullText = h.details || '';
       let initialReportText = fullText;
       let techLogText = '';
       let materialsText = '';
       let contractText = '';
 
-      // แยกส่วนจัดจ้าง
       if (fullText.includes('[บันทึกจัดจ้าง]:')) {
         const parts = fullText.split('[บันทึกจัดจ้าง]:');
         fullText = parts[0].trim();
         contractText = parts[1].trim();
       }
 
-      // แยกส่วนการบันทึกของช่าง
       if (fullText.includes('[ช่างบันทึก]:')) {
         const parts = fullText.split('[ช่างบันทึก]:');
         initialReportText = parts[0].trim();
@@ -561,7 +567,6 @@ async function refreshHistoryView(equipId) {
         initialReportText = 'แจ้งซ่อมผ่านระบบ';
       }
 
-      // แยกวัสดุอุปกรณ์
       if (techLogText.includes('OP_TYPE:')) {
         const opParts = techLogText.split('##');
         let detailsVal = '', typeVal = '';
@@ -573,7 +578,19 @@ async function refreshHistoryView(equipId) {
         techLogText = `[${typeVal}] ${detailsVal}`;
       }
 
-      // การ์ดใบงานแบบแจงรายละเอียดทุกหัวข้อ
+      // พรีวิวรูปภาพในแต่ละขั้นตอน
+      const imagePreviewHtml = h.imageAfter ? `
+        <div class="mt-2 pt-2 border-t border-slate-100 flex items-center gap-3">
+          <div class="relative group cursor-pointer" onclick="openImageModal('${h.imageAfter}')">
+            <img src="${h.imageAfter}" alt="หลักฐาน" class="h-16 w-20 object-cover rounded-lg border border-slate-200 shadow-2xs group-hover:opacity-90 transition-opacity">
+          </div>
+          <div class="text-[10px] text-slate-500 space-y-0.5">
+            <span class="font-bold text-slate-700 block">📷 ภาพถ่าย/เอกสารหลักฐานประกอบ</span>
+            <span class="text-emerald-700 cursor-pointer hover:underline font-medium" onclick="openImageModal('${h.imageAfter}')">คลิกเพื่อดูภาพขยายเต็มจอ</span>
+          </div>
+        </div>
+      ` : '';
+
       timelineHtml += `
         <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm border-l-4 ${accentBorder} space-y-3 mb-3">
           
@@ -586,7 +603,7 @@ async function refreshHistoryView(equipId) {
             <span class="px-2.5 py-1 rounded-full border text-[10px] font-bold ${badgeStyle}">${h.status}</span>
           </div>
 
-          <!-- ไทม์ไลน์ขั้นตอนการดำเนินงาน -->
+          <!-- ไทม์ไลน์ขั้นตอน -->
           <div class="space-y-2.5 pl-1 border-l-2 border-slate-100 ml-1.5">
             
             <!-- ขั้นตอนที่ 1: การแจ้งซ่อม -->
@@ -601,7 +618,7 @@ async function refreshHistoryView(equipId) {
               </div>
             </div>
 
-            <!-- ขั้นตอนที่ 2: ผลการดำเนินงานของช่าง / การประมาณราคา -->
+            <!-- ขั้นตอนที่ 2: งานช่างเทคนิค / ส่งประมาณราคา -->
             ${techLogText ? `
               <div class="relative pl-4">
                 <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-amber-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">2</div>
@@ -615,7 +632,7 @@ async function refreshHistoryView(equipId) {
               </div>
             ` : ''}
 
-            <!-- ขั้นตอนที่ 3: บันทึกปิดงานสัญญาจัดจ้าง (ถ้ามี) -->
+            <!-- ขั้นตอนที่ 3: สรุปงานจัดจ้างตามสัญญา -->
             ${contractText ? `
               <div class="relative pl-4">
                 <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">3</div>
@@ -630,15 +647,8 @@ async function refreshHistoryView(equipId) {
 
           </div>
 
-          <!-- แกลเลอรีภาพถ่ายและไฟล์แนบประจำใบงาน -->
-          <div class="pt-2 border-t border-slate-100 flex justify-between items-center text-[11px]">
-            <span class="font-bold text-slate-500 flex items-center gap-1"><i class="ph-bold ph-paperclip"></i> ไฟล์และภาพแนบในใบงาน:</span>
-            ${h.imageAfter ? `
-              <button type="button" onclick="openImageModal('${h.imageAfter}')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-lg font-bold text-[10px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
-                <i class="ph-bold ph-image text-xs"></i> 🔍 เปิดดูภาพถ่าย / เอกสารแนบ
-              </button>
-            ` : '<span class="text-slate-300 text-[10px]">ไม่มีไฟล์แนบในใบงานนี้</span>'}
-          </div>
+          <!-- แสดงภาพประกอบประจำใบงาน -->
+          ${imagePreviewHtml}
 
         </div>
       `;
@@ -647,7 +657,7 @@ async function refreshHistoryView(equipId) {
     container.innerHTML = `
       <div class="flex flex-col gap-1 w-full">
         ${summaryHtml}
-        <div class="w-full">
+        <div id="pdfPrintArea" class="w-full">
           ${timelineHtml}
         </div>
       </div>
@@ -656,6 +666,58 @@ async function refreshHistoryView(equipId) {
   } catch (e) {
     container.innerHTML = '<p class="text-rose-500 text-center py-4 text-xs font-bold">❌ เกิดข้อผิดพลาดในการดึงข้อมูลไทม์ไลน์ประวัติ</p>';
   }
+}
+
+// ==========================================
+// 📄 1. ฟังก์ชัน Export PDF ประวัติการบำรุงรักษา (Client-side HTML2PDF)
+// ==========================================
+function exportHistoryPDF(equipId) {
+  const element = document.getElementById('pdfPrintArea');
+  if (!element) {
+    if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ ไม่พบข้อมูลสำหรับออกเอกสาร PDF");
+    return;
+  }
+
+  if (typeof showQuietAlert === 'function') showQuietAlert("⏳ กำลังสร้างไฟล์ PDF ประวัติการบำรุงรักษา...");
+
+  const opt = {
+    margin:       [10, 10, 10, 10],
+    filename:     `ประวัติการซ่อมบำรุง_${equipId}.pdf`,
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true, logging: false },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+
+  html2pdf().set(opt).from(element).save().then(() => {
+    if (typeof showQuietAlert === 'function') showQuietAlert("✅ Export PDF ประวัติสำเร็จเรียบร้อย");
+  }).catch(err => {
+    if (typeof showQuietAlert === 'function') showQuietAlert("❌ ออก PDF ไม่สำเร็จ: " + err.toString());
+  });
+}
+
+// ==========================================
+// 📄 2. ฟังก์ชัน Export PDF ใบเบิกวัสดุอุปกรณ์ (Server-side Google Apps Script)
+// ==========================================
+function triggerExportMaterialPDF(repairId) {
+  if (!repairId) return;
+  if (typeof showQuietAlert === 'function') showQuietAlert("📄 ระบบกำลังสร้างเอกสารใบเบิกวัสดุอุปกรณ์ (PDF)...");
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) {
+        const a = document.createElement('a');
+        a.href = "data:application/pdf;base64," + res.base64;
+        a.download = res.filename;
+        a.click();
+        if (typeof showQuietAlert === 'function') showQuietAlert("✅ ดาวน์โหลดใบเบิกวัสดุอุปกรณ์สำเร็จ");
+      } else {
+        if (typeof showQuietAlert === 'function') showQuietAlert("❌ " + res.message);
+      }
+    })
+    .withFailureHandler(function(err) {
+      if (typeof showQuietAlert === 'function') showQuietAlert("❌ ออกใบเบิกไม่สำเร็จ: " + err.toString());
+    })
+    .exportMaterialRequisitionPDF(repairId);
 }
 
 function findAndOpenAsset(id) {
