@@ -2222,49 +2222,54 @@ function renderTechSpecsDetailModal(item) {
 // ==========================================
 // 📦 2. ฟังก์ชันออก "ใบเบิกวัสดุ/อุปกรณ์ซ่อมบำรุง" (รูปแบบ Native Print A4)
 // ==========================================
-function printWithdrawalForm(repairData) {
-  const printWindow = window.open('', '_blank', 'width=900,height=1000');
+// ==========================================
+// 📄 ฟังก์ชันพิมพ์ใบเบิกวัสดุ / อุปกรณ์ซ่อมบำรุง (ปรับปรุงส่วนท้ายเอกสาร)
+// ==========================================
+function printWithdrawalForm(data) {
+  if (!data) return;
+
+  const printWindow = window.open('', '_blank', 'width=950,height=800');
   if (!printWindow) {
-    if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ กรุณาอนุญาต Pop-up ในเบราว์เซอร์เพื่อเปิดใบเบิก");
+    if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ กรุณาอนุญาตให้แสดง Pop-up เพื่อเปิดใบเบิก");
     return;
   }
 
-  const r = repairData || {};
-  const repairId = r.repairId || r.ID || '-';
-  const assetId = r.assetId || r.equipId || '-';
-  const assetName = r.assetName || r.name || '-';
-  const department = r.department || 'สำนักสิ่งแวดล้อม';
-  const location = r.location || '-';
-  const requester = r.reporter || r.requester || '-';
-  const dateStr = r.date || new Date().toLocaleDateString('th-TH');
-
-  // แกะรายการวัสดุอุปกรณ์จากข้อความบันทึก
-  let rawMaterials = r.materials || '';
-  if (!rawMaterials && r.details && r.details.includes('MATERIALS:')) {
-    rawMaterials = r.details.split('MATERIALS:')[1].split('##')[0];
+  // ถอดรหัสรายการวัสดุอุปกรณ์จากข้อความรายละเอียด
+  let materialsText = '';
+  if (data.details && data.details.includes('MATERIALS:')) {
+    const parts = data.details.split('MATERIALS:');
+    materialsText = parts[1] ? parts[1].split('##')[0].trim() : '';
+  } else if (data.materials) {
+    materialsText = data.materials;
   }
 
-  let materialItems = rawMaterials.split(',').filter(m => m.trim() !== '');
-  let materialRowsHtml = materialItems.map((mat, index) => {
-    return `
-      <tr>
-        <td style="padding:8px; border:1px solid #94a3b8; text-align:center;">${index + 1}</td>
-        <td style="padding:8px; border:1px solid #94a3b8;">${mat.trim()}</td>
-        <td style="padding:8px; border:1px solid #94a3b8; text-align:center;">1</td>
-        <td style="padding:8px; border:1px solid #94a3b8; text-align:center;">ชุด/รายการ</td>
-        <td style="padding:8px; border:1px solid #94a3b8; text-align:center;">เพื่อซ่อมบำรุง</td>
-      </tr>
-    `;
-  }).join('');
+  let materialsList = [];
+  if (materialsText && materialsText !== 'ไม่ได้ใช้วัสดุอุปกรณ์') {
+    materialsList = materialsText.split(',').map(m => m.trim()).filter(m => m);
+  }
 
-  if (materialItems.length === 0) {
-    materialRowsHtml = `
+  let tableRowsHtml = '';
+  if (materialsList.length > 0) {
+    tableRowsHtml = materialsList.map((mat, idx) => {
+      const match = mat.match(/^(.*?)\s*\((.*?)\)$/);
+      const name = match ? match[1] : mat;
+      const qty = match ? match[2] : '1';
+      return `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">${idx + 1}</td>
+          <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">${name}</td>
+          <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">${qty}</td>
+          <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">ชุด/รายการ</td>
+          <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;">เพื่อซ่อมบำรุง</td>
+        </tr>
+      `;
+    }).join('');
+  } else {
+    tableRowsHtml = `
       <tr>
-        <td style="padding:8px; border:1px solid #94a3b8; text-align:center;">1</td>
-        <td style="padding:8px; border:1px solid #94a3b8;">${rawMaterials || 'วัสดุอุปกรณ์ซ่อมบำรุงทั่วไป'}</td>
-        <td style="padding:8px; border:1px solid #94a3b8; text-align:center;">1</td>
-        <td style="padding:8px; border:1px solid #94a3b8; text-align:center;">ชุด</td>
-        <td style="padding:8px; border:1px solid #94a3b8; text-align:center;">เบิกตามใบงาน</td>
+        <td colspan="5" style="padding: 12px; border: 1px solid #cbd5e1; text-align: center; color: #94a3b8;">
+          ไม่มีรายการเบิกวัสดุอุปกรณ์
+        </td>
       </tr>
     `;
   }
@@ -2275,90 +2280,89 @@ function printWithdrawalForm(repairData) {
     <html lang="th">
     <head>
       <meta charset="UTF-8">
-      <title>ใบเบิกวัสดุอุปกรณ์_${repairId}</title>
+      <title>ใบเบิกวัสดุ_อุปกรณ์_${data.repairId || 'RP'}</title>
       <style>
-        @page { size: A4 portrait; margin: 15mm; }
-        body { font-family: "Sarabun", "Garuda", Tahoma, sans-serif; color: #0f172a; margin: 0; padding: 0; background: #fff; }
-        table { width: 100%; border-collapse: collapse; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .header h1 { font-size: 20px; font-weight: bold; margin: 0 0 5px 0; color: #065f46; }
-        .header p { font-size: 13px; margin: 0; color: #475569; }
-        .info-box { font-size: 13px; margin-bottom: 15px; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; }
-        .sign-table { margin-top: 40px; font-size: 12px; }
-        .sign-box { text-align: center; padding: 10px; }
-        @media print {
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        }
+        @page { size: A4 landscape; margin: 15mm; }
+        body { font-family: "Sarabun", "Garuda", Tahoma, sans-serif; color: #1e293b; margin: 0; padding: 20px; background: #fff; line-height: 1.5; }
+        .header-title { text-align: center; color: #065f46; font-size: 22px; font-weight: bold; margin-bottom: 4px; }
+        .header-sub { text-align: center; color: #475569; font-size: 14px; margin-bottom: 20px; }
+        .info-box { border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; margin-bottom: 24px; background-color: #f8fafc; font-size: 13px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 35px; font-size: 13px; }
+        th { background-color: #f1f5f9; padding: 10px; border: 1px solid #cbd5e1; font-weight: bold; color: #334155; }
+        
+        /* 🟢 โครงสร้างส่วนเซ็นชื่อท้ายเอกสาร */
+        .signature-section { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; text-align: center; font-size: 13px; margin-top: 30px; }
+        .signature-block { line-height: 1.8; }
+        .role-title { font-weight: bold; font-size: 13px; color: #0f172a; margin-top: 4px; display: block; }
+
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
       </style>
     </head>
     <body>
-      <div class="header">
-        <h1>ใบเบิกวัสดุ / อุปกรณ์ซ่อมบำรุงครุภัณฑ์</h1>
-        <p>หน่วยงาน: ${department}</p>
-      </div>
+      <div class="header-title">ใบเบิกวัสดุ / อุปกรณ์ซ่อมบำรุงครุภัณฑ์</div>
+      <div class="header-sub">หน่วยงาน: ${data.department || 'ฝ่ายบริหารจัดการพื้นที่สีเขียว 3'}</div>
 
       <div class="info-box">
-        <table>
-          <tr>
-            <td width="60%"><b>เลขที่ใบแจ้งซ่อม:</b> ${repairId}</td>
-            <td width="40%"><b>วันที่เบิก:</b> ${dateStr}</td>
-          </tr>
-          <tr>
-            <td><b>รหัสครุภัณฑ์:</b> ${assetId} (${assetName})</td>
-            <td><b>สถานที่ติดตั้ง:</b> ${location}</td>
-          </tr>
-          <tr>
-            <td colspan="2"><b>ผู้ขอเบิก / ช่างผู้รับผิดชอบ:</b> ${requester}</td>
-          </tr>
-        </table>
+        <div class="info-grid">
+          <div>
+            <div><b>เลขที่ใบแจ้งซ่อม:</b> ${data.repairId || '-'}</div>
+            <div style="margin-top: 4px;"><b>รหัสครุภัณฑ์:</b> ${data.assetId || '-'}</div>
+            <div style="margin-top: 4px;"><b>ผู้ขอเบิก / ช่างผู้รับผิดชอบ:</b> ${data.reporter || '-'}</div>
+          </div>
+          <div>
+            <div><b>วันที่เบิก:</b> ${data.date || '-'}</div>
+            <div style="margin-top: 4px;"><b>สถานที่ติดตั้ง:</b> ${data.location || '-'}</div>
+          </div>
+        </div>
       </div>
 
-      <b style="font-size: 13px;">รายการวัสดุอุปกรณ์ที่ขอเบิก:</b>
-      <table style="margin-top: 8px; font-size: 12px;">
+      <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px;">รายการวัสดุอุปกรณ์ที่ขอเบิก:</div>
+      <table>
         <thead>
-          <tr style="background-color: #f1f5f9;">
-            <th width="10%" style="padding:8px; border:1px solid #94a3b8; text-align:center;">ลำดับ</th>
-            <th width="50%" style="padding:8px; border:1px solid #94a3b8; text-align:center;">รายการวัสดุ / อุปกรณ์</th>
-            <th width="12%" style="padding:8px; border:1px solid #94a3b8; text-align:center;">จำนวน</th>
-            <th width="13%" style="padding:8px; border:1px solid #94a3b8; text-align:center;">หน่วยนับ</th>
-            <th width="15%" style="padding:8px; border:1px solid #94a3b8; text-align:center;">หมายเหตุ</th>
+          <tr>
+            <th width="8%">ลำดับ</th>
+            <th width="48%">รายการวัสดุ / อุปกรณ์</th>
+            <th width="12%">จำนวน</th>
+            <th width="14%">หน่วยนับ</th>
+            <th width="18%">หมายเหตุ</th>
           </tr>
         </thead>
         <tbody>
-          ${materialRowsHtml}
+          ${tableRowsHtml}
         </tbody>
       </table>
 
-      <table class="sign-table">
-        <tr>
-          <td class="sign-box" width="33%">
-            ลงชื่อ....................................................ผู้ขอเบิก<br/>
-            (....................................................)<br/>
-            ตำแหน่ง....................................................
-          </td>
-          <td class="sign-box" width="33%">
-            ลงชื่อ....................................................ผู้จ่ายวัสดุ<br/>
-            (....................................................)<br/>
-            ตำแหน่ง....................................................
-          </td>
-          <td class="sign-box" width="33%">
-            ลงชื่อ....................................................ผู้อนุมัติ<br/>
-            (....................................................)<br/>
-            ตำแหน่ง....................................................
-          </td>
-        </tr>
-      </table>
+      <!-- 🟢 จัดระเบียบส่วนลายเซ็น: แยกบรรทัดชื่อ-ตำแหน่ง-วันที่ และวางบทบาท (ผู้ขอเบิก/ผู้จ่าย/ผู้อนุมัติ) ไว้ล่างสุดอย่างสวยงาม -->
+      <div class="signature-section">
+        <div class="signature-block">
+          ลงชื่อ...................................................................<br>
+          (...................................................................)<br>
+          ตำแหน่ง...................................................................<br>
+          วันที่........../........../..........<br>
+          <span class="role-title">ผู้ขอเบิก</span>
+        </div>
+        <div class="signature-block">
+          ลงชื่อ...................................................................<br>
+          (...................................................................)<br>
+          ตำแหน่ง...................................................................<br>
+          วันที่........../........../..........<br>
+          <span class="role-title">ผู้จ่ายวัสดุ</span>
+        </div>
+        <div class="signature-block">
+          ลงชื่อ...................................................................<br>
+          (...................................................................)<br>
+          ตำแหน่ง...................................................................<br>
+          วันที่........../........../..........<br>
+          <span class="role-title">ผู้อนุมัติ</span>
+        </div>
+      </div>
 
       <script>
-        window.onload = function() {
-          setTimeout(function() {
-            window.print();
-          }, 500);
-        };
+        window.onload = function() { setTimeout(function() { window.print(); }, 400); };
       </script>
     </body>
     </html>
   `);
-
   printWindow.document.close();
 }
