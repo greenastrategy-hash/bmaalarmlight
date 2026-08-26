@@ -669,7 +669,25 @@ async function refreshHistoryView(equipId) {
 }
 
 // ==========================================
-// 📄 ฟังก์ชัน Export PDF (แก้ปัญหาสี oklch Tailwind v4 ถาวร)
+// 🛠️ ฟังก์ชันแปลงค่าสี oklch เป็น rgb(...) ด้วย HTML5 Canvas
+// ==========================================
+function convertOklchToRgb(colorStr) {
+  if (!colorStr || typeof colorStr !== 'string' || !colorStr.includes('oklch')) return colorStr;
+  try {
+    const cvs = document.createElement('canvas');
+    cvs.width = cvs.height = 1;
+    const ctx = cvs.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = colorStr;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+    return a === 255 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(2)})`;
+  } catch (e) {
+    return '#1e293b';
+  }
+}
+
+// ==========================================
+// 📄 ฟังก์ชัน Export PDF (แก้ปัญหาสี oklch ถาวร)
 // ==========================================
 function exportHistoryPDF(equipId) {
   const element = document.getElementById('wsRepairHistoryContainer') || document.getElementById('pdfPrintArea');
@@ -688,28 +706,29 @@ function exportHistoryPDF(equipId) {
       scale: 2, 
       useCORS: true, 
       logging: false,
-      // 🛠️ ล้างค่าสี oklch ใน DOM ต้นฉบับที่โคลนมาทั้งหมดแบบ Recursive
       onclone: (clonedDoc) => {
+        // 1. กวาดล้างและแทนที่ค่า oklch ในทุก <style> tag ของ Tailwind v4 ฝั่ง DOM โคลน
+        clonedDoc.querySelectorAll('style').forEach(styleTag => {
+          if (styleTag.innerHTML && styleTag.innerHTML.includes('oklch')) {
+            styleTag.innerHTML = styleTag.innerHTML.replace(/oklch\([^)]+\)/g, '#64748b');
+          }
+        });
+
+        // 2. แปลง Computed Style ของทุก Element ในพื้นที่พิมพ์เป็น rgb(...)
         const clonedTarget = clonedDoc.getElementById('wsRepairHistoryContainer') || clonedDoc.getElementById('pdfPrintArea');
         if (clonedTarget) {
           const allElements = clonedTarget.querySelectorAll('*');
           allElements.forEach(el => {
-            // ดึง Inline style attribute ออกมาตรวจ
-            let styleAttr = el.getAttribute('style') || '';
-            if (styleAttr.includes('oklch')) {
-              // ลบส่วนที่เป็น oklch ออกจาก inline style
-              styleAttr = styleAttr.replace(/oklch\([^)]+\)/g, '#1e293b');
-              el.setAttribute('style', styleAttr);
-            }
-
-            // บังคับเปลี่ยนสีพื้นฐานให้อยู่ในรูป Hex / RGB ป้องกัน CSS class จาก Tailwind v4
             const comp = window.getComputedStyle(el);
-            if (comp.color.includes('oklch')) el.style.color = '#1e293b';
-            if (comp.backgroundColor.includes('oklch')) el.style.backgroundColor = '#ffffff';
-            if (comp.borderColor.includes('oklch')) el.style.borderColor = '#cbd5e1';
             
-            // ป้องกัน Shadow / Ring สี oklch ใน Tailwind v4
+            el.style.color = convertOklchToRgb(comp.color);
+            el.style.backgroundColor = convertOklchToRgb(comp.backgroundColor);
+            el.style.borderColor = convertOklchToRgb(comp.borderColor);
+            
+            // ลบ Shadow / Ring ที่มีสี oklch แฝงอยู่
             el.style.boxShadow = 'none';
+            el.style.textShadow = 'none';
+            el.style.outline = 'none';
           });
         }
       }
