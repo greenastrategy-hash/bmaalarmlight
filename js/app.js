@@ -1524,3 +1524,54 @@ function showLoadingModal(title, sub) {
 }
 
 function hideLoadingModal() { document.getElementById('loadingModal')?.classList.add('hidden'); }
+
+// =========================================================================
+// 📄 ฟังก์ชันฝั่งหน้าบ้านสำหรับกดปุ่ม Export PDF (A4) บน Modal
+// =========================================================================
+function triggerExportPDF() {
+  if(!currentActiveId) return;
+  showQuietAlert("📄 ระบบกำลังสร้างเอกสารรายงาน PDF...");
+  
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if(res.success) {
+        var a = document.createElement('a'); 
+        a.href = "data:application/pdf;base64," + res.base64; 
+        a.download = res.filename; 
+        a.click();
+        showQuietAlert("✅ ดาวน์โหลดไฟล์ PDF สำเร็จ");
+      } else { 
+        showQuietAlert("❌ " + res.message); 
+      }
+    })
+    .withFailureHandler(function(err) {
+      showQuietAlert("❌ ไม่สามารถส่งไฟล์ได้: รูปภาพหน้างานอาจมีขนาดใหญ่เกินขีดจำกัดของระบบ");
+      console.error("PDF Export Network Error:", err);
+    })
+    .exportAssetPDF(currentActiveId);
+}
+
+// =========================================================================
+// 📄 ฟังก์ชันฝั่งหน้าบ้านสำหรับกดปุ่ม ใบเบิกวัสดุอุปกรณ์ (PDF)
+// =========================================================================
+function triggerExportMaterialPDF(repairId) {
+  if (!repairId) return;
+  showQuietAlert("📄 ระบบกำลังสร้างเอกสารใบเบิกวัสดุอุปกรณ์ (PDF)...");
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) {
+        var a = document.createElement('a');
+        a.href = "data:application/pdf;base64," + res.base64;
+        a.download = res.filename;
+        a.click();
+        showQuietAlert("✅ ดาวน์โหลดใบเบิกวัสดุอุปกรณ์สำเร็จ");
+      } else {
+        showQuietAlert("❌ " + res.message);
+      }
+    })
+    .withFailureHandler(function(err) {
+      showQuietAlert("❌ ออกใบเบิกไม่สำเร็จ: " + err.toString());
+    })
+    .exportMaterialRequisitionPDF(repairId);
+}
