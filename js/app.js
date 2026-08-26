@@ -669,10 +669,10 @@ async function refreshHistoryView(equipId) {
 }
 
 // ==========================================
-// 📄 ฟังก์ชัน Export PDF ประวัติการบำรุงรักษา (แก้ปัญหา OKLCH Color Error)
+// 📄 1. ฟังก์ชันส่งออก PDF ประวัติไทม์ไลน์ (Client-side HTML2PDF)
 // ==========================================
 function exportHistoryPDF(equipId) {
-  const element = document.getElementById('pdfPrintArea');
+  const element = document.getElementById('pdfPrintArea') || document.getElementById('wsRepairHistoryContainer');
   if (!element) {
     if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ ไม่พบข้อมูลสำหรับออกเอกสาร PDF");
     return;
@@ -688,24 +688,16 @@ function exportHistoryPDF(equipId) {
       scale: 2, 
       useCORS: true, 
       logging: false,
-      // 🌟 แก้ไข OKLCH Error: ล้าง CSS Rule ที่ใช้ oklch ก่อนที่ html2canvas จะทำงาน
+      // ดักจับและแปลงสี oklch (Tailwind v4) ป้องกัน Error ละลาย PDF
       onclone: (clonedDocument) => {
-        const clonedElement = clonedDocument.getElementById('pdfPrintArea');
+        const clonedElement = clonedDocument.getElementById('pdfPrintArea') || clonedDocument.getElementById('wsRepairHistoryContainer');
         if (clonedElement) {
-          // บังคับให้ Element ทั้งหมดภายในพื้นที่พิมพ์ใช้ชุดสีคอมแพทิเบิลแบบย่อ
           const allNodes = clonedElement.querySelectorAll('*');
           allNodes.forEach(node => {
             const computedStyle = window.getComputedStyle(node);
-            // แปลงสไตล์เป็น Inline Text สีปกติหากพบการใช้งาน oklch
-            if (computedStyle.color.includes('oklch')) {
-              node.style.color = '#1e293b';
-            }
-            if (computedStyle.backgroundColor.includes('oklch')) {
-              node.style.backgroundColor = '#ffffff';
-            }
-            if (computedStyle.borderColor.includes('oklch')) {
-              node.style.borderColor = '#cbd5e1';
-            }
+            if (computedStyle.color.includes('oklch')) node.style.color = '#1e293b';
+            if (computedStyle.backgroundColor.includes('oklch')) node.style.backgroundColor = '#ffffff';
+            if (computedStyle.borderColor.includes('oklch')) node.style.borderColor = '#cbd5e1';
           });
         }
       }
@@ -721,7 +713,7 @@ function exportHistoryPDF(equipId) {
 }
 
 // ==========================================
-// 📄 2. ฟังก์ชัน Export PDF ใบเบิกวัสดุอุปกรณ์ (Server-side Google Apps Script)
+// 📄 2. ฟังก์ชันเรียกออกใบเบิกวัสดุ (Server-side Trigger)
 // ==========================================
 function triggerExportMaterialPDF(repairId) {
   if (!repairId) return;
