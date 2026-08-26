@@ -687,10 +687,7 @@ function convertOklchToRgb(colorStr) {
 }
 
 // ==========================================
-// 📄 ฟังก์ชัน Export PDF (แก้ปัญหาสี oklch ถาวร)
-// ==========================================
-// ==========================================
-// 📄 3. ฟังก์ชัน Export PDF ปุ่มสีแดง (คลี่การแสดงผลไทม์ไลน์ออกทั้งหมด)
+// 📄 2. ฟังก์ชัน Export PDF ปุ่มสีแดง (คลี่การแสดงผลไทม์ไลน์ออกทั้งหมด)
 // ==========================================
 function exportHistoryPDF(equipId) {
   const container = document.getElementById('wsRepairHistoryContainer');
@@ -701,16 +698,20 @@ function exportHistoryPDF(equipId) {
 
   if (typeof showQuietAlert === 'function') showQuietAlert("⏳ กำลังสร้างไฟล์ PDF ประวัติการบำรุงรักษา...");
 
-  // 🟢 แก้ไขจุดที่ 2: ทำการ Clone DOM และปลดล็อก Max-Height / Scrollbar ออกเพื่อให้ PDF คลี่ครบทุกรายการ
+  // 🟢 แก้ไข: ใช้เทคนิค Clone และจัดวางแบบ opacity:0 บนหน้าจอ
   const clonedElement = container.cloneNode(true);
   clonedElement.style.maxHeight = 'none';
   clonedElement.style.height = 'auto';
   clonedElement.style.overflow = 'visible';
-  clonedElement.style.position = 'absolute';
-  clonedElement.style.left = '-9999px';
+  clonedElement.style.position = 'fixed';
+  clonedElement.style.top = '0';
+  clonedElement.style.left = '0';
+  clonedElement.style.opacity = '0';
+  clonedElement.style.pointerEvents = 'none';
+  clonedElement.style.zIndex = '-1000';
   clonedElement.style.width = '750px';
+  clonedElement.style.backgroundColor = '#ffffff';
 
-  // ซ่อนปุ่มกดภายใน DOM คัดลอก
   const btnInClone = clonedElement.querySelector('button');
   if (btnInClone) btnInClone.style.display = 'none';
 
@@ -1689,10 +1690,9 @@ function triggerExportPDF() {
 }
 
 // ==========================================
-// 📄 2. ฟังก์ชัน Render โครงสร้างรายงาน A4 ครบทุกส่วน (Client A4 Full Report)
+// 📄 1. ฟังก์ชัน Render โครงสร้างรายงาน A4 ครบทุกส่วน (Client A4 Full Report)
 // ==========================================
 function generateA4ReportPDFClient(equipId) {
-  // 🟢 แก้ไขจุดที่ 1: เปลี่ยนจุดดึงข้อมูลมาใช้ตัวแปร allData หลักของแอป
   const allAssets = (typeof allData !== 'undefined' && allData.length > 0) ? allData : (window.allAssetsData || []);
   let item = allAssets.find(x => x && (x.ID || x.id || '').toString().trim().toUpperCase() === equipId.toString().trim().toUpperCase());
 
@@ -1707,7 +1707,6 @@ function generateA4ReportPDFClient(equipId) {
 
   if (typeof showQuietAlert === 'function') showQuietAlert("⏳ กำลังจัดรูปแบบรายงาน PDF (A4)...");
 
-  // ดึงประวัติการแจ้งซ่อมย้อนหลังจาก API ชั่วคราว
   apiGet('getRepairHistory').then(res => {
     const historyList = (res.data || []).filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === equipId.toString().trim().toUpperCase());
     const totalReports = historyList.length;
@@ -1766,10 +1765,14 @@ function generateA4ReportPDFClient(equipId) {
     const assetImgTag = (assetImgSrc && !assetImgSrc.includes('data:,')) ? `<img src="${assetImgSrc}" crossorigin="anonymous" style="max-height:150px; max-width:100%; object-fit:contain; border-radius:6px;"/>` : '<p style="color:#94a3b8; font-size:11px;">(ไม่มีภาพถ่ายประกอบ)</p>';
     const qrImgTag = (qrImgSrc && !qrImgSrc.includes('data:,')) ? `<img src="${qrImgSrc}" crossorigin="anonymous" style="max-height:120px; max-width:100%; object-fit:contain; border-radius:6px;"/>` : '<p style="color:#94a3b8; font-size:11px;">(ไม่มี QR Code)</p>';
 
+    // 🟢 แก้ไข: เปลี่ยนมาใช้ซ่อนแบบ opacity:0 แทนการดึงพิกัดติดลบ เพื่อให้ Canvas เรนเดอร์ขนาดความกว้าง-สูงได้ปกติ
     const reportContainer = document.createElement('div');
-    reportContainer.style.position = 'absolute';
-    reportContainer.style.left = '-9999px';
-    reportContainer.style.top = '-9999px';
+    reportContainer.style.position = 'fixed';
+    reportContainer.style.top = '0';
+    reportContainer.style.left = '0';
+    reportContainer.style.opacity = '0';
+    reportContainer.style.pointerEvents = 'none';
+    reportContainer.style.zIndex = '-1000';
     reportContainer.style.width = '790px';
     reportContainer.style.backgroundColor = '#ffffff';
     reportContainer.style.color = '#1e293b';
