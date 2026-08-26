@@ -1,3 +1,6 @@
+// 🟢 วางไว้ที่บรรทัดบนสุดของไฟล์ js/app.js
+const API_URL = 'https://script.google.com/macros/s/AKfycbx8AQznXGrx9BGbCln6r3m9dsU7yF2w6vSCt8vMgoi7fHvR7icflL7GOCA-U8X5HmIG/exec'; // ⚠️ แทนที่ด้วย URL Web App ของคุณ
+
 let map = null, markersLayer = null, allData = [], markerDict = {};
 let isOfficer = false, isTechnician = false, isAdmin = false, currentDepartment = "";
 let currentActiveId = "", currentActiveItemRaw = null, bmaMaskLayer = null, bmaDistrictsLayer = null, bmaCachedGeoJSON = null;
