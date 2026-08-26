@@ -39,7 +39,7 @@
     </div>
   </nav>
 
-  <!-- Summary Cards (เพิ่มการ์ดรอจัดจ้าง) -->
+  <!-- Summary Cards -->
   <div class="p-3 grid grid-cols-2 sm:grid-cols-6 gap-2 sm:gap-3">
     <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-cards"></i></div><div><p class="text-[10px] text-slate-400 font-medium">ทั้งหมด</p><p id="count_all" class="text-sm font-extrabold">0</p></div></div>
     <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-teal-50 text-teal-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-check-circle"></i></div><div><p class="text-[10px] text-slate-400 font-medium">ปกติ</p><p id="count_normal" class="text-sm font-extrabold text-teal-600">0</p></div></div>
@@ -319,9 +319,15 @@
     <div class="bg-white rounded-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto p-5 sm:p-6 shadow-2xl relative mx-auto my-auto flex flex-col">
       <button onclick="closeModal()" class="absolute top-3 right-4 text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer transition-colors">&times;</button>
       
+      <!-- ส่วนหัว Modal: เพิ่มปุ่ม Export PDF (A4) -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3.5 mb-4 pr-8">
         <div id="wsStatusBadge" class="flex items-center"></div>
         <div class="flex items-center gap-2">
+          <!-- 📄 ปุ่ม Export PDF (A4) สำหรับเรียกรายงานสรุป A4 -->
+          <button id="exportPdfBtn" onclick="triggerExportPDF()" class="bg-slate-100 hover:bg-emerald-50 text-emerald-800 hover:text-emerald-900 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-3xs">
+            <i class="ph-bold ph-file-pdf text-emerald-700 text-sm"></i> Export PDF (A4)
+          </button>
+          
           <button id="officerEditBtn" onclick="triggerEditAsset()" class="bg-slate-100 hover:bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 hidden transition-colors flex items-center gap-1 cursor-pointer">
             <i class="ph-bold ph-note-pencil text-sm"></i> แก้ไขข้อมูล
           </button>
@@ -474,7 +480,10 @@
             <h4 class="font-bold text-slate-800 mb-2 flex items-center gap-1 text-xs sm:text-sm border-b pb-1.5">
               <i class="ph-bold ph-clock-counter-clockwise text-emerald-700 text-base"></i> บันทึกไทม์ไลน์และประวัติการบำรุงรักษาย้อนหลัง
             </h4>
-            <div id="wsRepairHistoryContainer" class="bg-slate-50 rounded-xl p-3.5 border border-slate-200 overflow-y-auto overflow-x-hidden flex-1 shadow-inner h-[380px] min-h-[380px]"></div>
+            <!-- กล่องประวัติไทม์ไลน์เพิ่ม id pdfPrintArea สำหรับ Client PDF -->
+            <div id="pdfPrintArea">
+              <div id="wsRepairHistoryContainer" class="bg-slate-50 rounded-xl p-3.5 border border-slate-200 overflow-y-auto overflow-x-hidden flex-1 shadow-inner h-[380px] min-h-[380px]"></div>
+            </div>
           </div>
         </div>
       </div>
