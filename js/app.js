@@ -469,24 +469,24 @@ function closeModal() { document.getElementById('detailsModal')?.classList.add('
 async function refreshHistoryView(equipId) {
   const container = document.getElementById('wsRepairHistoryContainer');
   if (!container) return;
-  container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs font-medium">⏳ กำลังโหลดประวัติการบำรุงรักษา...</p>';
+  container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs font-medium">⏳ กำลังโหลดประวัติไทม์ไลน์การบำรุงรักษาอย่างละเอียด...</p>';
 
   try {
     const res = await apiGet('getRepairHistory');
     const history = res.data || [];
     const searchKey = equipId.toString().trim().toUpperCase();
     
-    // 1. กรองประวัติทั้งหมดของครุภัณฑ์ ID นี้ (รวมทุกสถานะ: รอดำเนินการ, ซ่อมเสร็จสิ้น, รอจัดจ้าง)
+    // 1. กรองประวัติทั้งหมดของครุภัณฑ์ ID นี้
     const filtered = history.filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === searchKey);
 
-    // 2. จัดเรียงไทม์ไลน์: รายการล่าสุดอยู่บนสุด (Newest First)
+    // 2. เรียงลำดับไทม์ไลน์: ใบงานล่าสุดอยู่บนสุด
     filtered.sort((a, b) => {
       const parseDate = (dStr) => {
         if (!dStr) return 0;
         const p = dStr.split('/');
         if (p.length < 3) return 0;
         let y = parseInt(p[2], 10);
-        if (y > 2400) y -= 543; // แปลง พ.ศ. เป็น ค.ศ.
+        if (y > 2400) y -= 543;
         return new Date(y, parseInt(p[1], 10) - 1, parseInt(p[0], 10)).getTime();
       };
       return parseDate(b.date) - parseDate(a.date);
@@ -503,11 +503,11 @@ async function refreshHistoryView(equipId) {
       }
     }
 
-    // 3. สรุปยอดรวมการแจ้งซ่อมสะสม
+    // สรุปยอดรวม
     const summaryHtml = `
-      <div class="bg-slate-100 text-slate-700 p-2.5 rounded-xl border border-slate-200 text-[11px] font-bold flex justify-between items-center mb-2 shadow-2xs w-full">
-        <span class="flex items-center gap-1"><i class="ph-bold ph-chart-bar text-emerald-600"></i> สถิติบันทึกประวัติสะสม:</span>
-        <span class="bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 rounded-full font-extrabold">${filtered.length} รายการ</span>
+      <div class="bg-slate-100 text-slate-700 p-2.5 rounded-xl border border-slate-200 text-[11px] font-bold flex justify-between items-center mb-3 shadow-2xs w-full">
+        <span class="flex items-center gap-1"><i class="ph-bold ph-clock-counter-clockwise text-emerald-600"></i> ประวัติประมวลผลไทม์ไลน์ย้อนหลัง:</span>
+        <span class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full font-extrabold">${filtered.length} ใบงาน</span>
       </div>
     `;
 
@@ -517,13 +517,13 @@ async function refreshHistoryView(equipId) {
           ${summaryHtml}
           <div class="text-slate-400 text-center py-8 bg-white border border-slate-200 rounded-xl shadow-2xs text-xs">
             <i class="ph-bold ph-folder-open text-2xl text-slate-300 mb-1 block"></i>
-            ไม่พบประวัติการแจ้งซ่อมหรือการจัดจ้างสำหรับครุภัณฑ์นี้
+            ไม่พบประวัติบันทึกข้อมูลสำหรับครุภัณฑ์นี้
           </div>
         </div>`;
       return;
     }
 
-    // 4. วนลูปสร้างการ์ดแสดงผลไทม์ไลน์
+    // 3. วนลูปแจงรายละเอียดทุกขั้นตอน ทุกหัวข้อ ทุกไฟล์แนบ
     let timelineHtml = '';
     filtered.forEach((h) => {
       let badgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
@@ -537,64 +537,107 @@ async function refreshHistoryView(equipId) {
         accentBorder = 'border-l-amber-500';
       }
 
-      let rawDetails = h.details || '-';
+      // 🔍 ถอดรหัสข้อความแยกตามขั้นตอน (Parsing Details)
+      let fullText = h.details || '';
+      let initialReportText = fullText;
+      let techLogText = '';
       let materialsText = '';
       let contractText = '';
 
-      // แยกข้อมูลกรณีมีข้อความการจัดจ้างหรือ Tag พิเศษจากช่าง
-      if (rawDetails.includes('[บันทึกจัดจ้าง]:')) {
-        const splitParts = rawDetails.split('[บันทึกจัดจ้าง]:');
-        rawDetails = splitParts[0].trim();
-        contractText = splitParts[1].trim();
+      // แยกส่วนจัดจ้าง
+      if (fullText.includes('[บันทึกจัดจ้าง]:')) {
+        const parts = fullText.split('[บันทึกจัดจ้าง]:');
+        fullText = parts[0].trim();
+        contractText = parts[1].trim();
       }
 
-      if (rawDetails.includes('OP_TYPE:')) {
-        const parts = rawDetails.split('##');
+      // แยกส่วนการบันทึกของช่าง
+      if (fullText.includes('[ช่างบันทึก]:')) {
+        const parts = fullText.split('[ช่างบันทึก]:');
+        initialReportText = parts[0].trim();
+        techLogText = parts[1].trim();
+      } else if (fullText.includes('OP_TYPE:')) {
+        techLogText = fullText;
+        initialReportText = 'แจ้งซ่อมผ่านระบบ';
+      }
+
+      // แยกวัสดุอุปกรณ์
+      if (techLogText.includes('OP_TYPE:')) {
+        const opParts = techLogText.split('##');
         let detailsVal = '', typeVal = '';
-        parts.forEach(p => {
+        opParts.forEach(p => {
           if (p.startsWith('OP_TYPE:')) typeVal = p.replace('OP_TYPE:', '');
           if (p.startsWith('DETAILS:')) detailsVal = p.replace('DETAILS:', '');
           if (p.startsWith('MATERIALS:')) materialsText = p.replace('MATERIALS:', '');
         });
-        rawDetails = `[${typeVal}] ${detailsVal}`;
+        techLogText = `[${typeVal}] ${detailsVal}`;
       }
 
+      // การ์ดใบงานแบบแจงรายละเอียดทุกหัวข้อ
       timelineHtml += `
-        <div class="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs border-l-4 ${accentBorder} space-y-2.5 transition-all">
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm border-l-4 ${accentBorder} space-y-3 mb-3">
           
-          <!-- หัวใบงาน & ป้ายสถานะ -->
-          <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-            <div class="flex items-center gap-1.5">
-              <span class="font-extrabold text-slate-800 text-xs">📌 ${h.repairId}</span>
-              <span class="text-[10px] text-slate-400 font-medium">(${h.date})</span>
+          <!-- Header ใบงาน -->
+          <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
+            <div>
+              <span class="font-extrabold text-slate-900 text-xs sm:text-sm">📌 ใบงานเลขที่: ${h.repairId}</span>
+              <span class="text-[11px] text-slate-400 font-medium ml-2">📅 ${h.date}</span>
             </div>
-            <span class="px-2 py-0.5 rounded-full border text-[10px] font-bold ${badgeStyle}">${h.status}</span>
+            <span class="px-2.5 py-1 rounded-full border text-[10px] font-bold ${badgeStyle}">${h.status}</span>
           </div>
 
-          <!-- รายละเอียดการแจ้งซ่อม / ประมาณราคา -->
-          <div class="text-[11px] text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-100 leading-relaxed whitespace-pre-line">
-            ${rawDetails}
-            ${materialsText ? `<div class="mt-1.5 pt-1.5 border-t border-slate-200 text-slate-600 font-medium"><i class="ph-bold ph-wrench text-emerald-600"></i> <b>อุปกรณ์ที่ใช้:</b> ${materialsText}</div>` : ''}
-          </div>
-
-          <!-- ข้อมูลสัญญาจัดจ้าง (แสดงเมื่อมีบันทึกจัดจ้าง) -->
-          ${contractText ? `
-            <div class="text-[11px] text-amber-900 bg-amber-50/70 p-2.5 rounded-lg border border-amber-200 leading-relaxed">
-              <div class="font-bold flex items-center gap-1 text-amber-900 mb-0.5">
-                <i class="ph-bold ph-file-text text-amber-700"></i> รายละเอียดสัญญาจัดจ้าง:
+          <!-- ไทม์ไลน์ขั้นตอนการดำเนินงาน -->
+          <div class="space-y-2.5 pl-1 border-l-2 border-slate-100 ml-1.5">
+            
+            <!-- ขั้นตอนที่ 1: การแจ้งซ่อม -->
+            <div class="relative pl-4">
+              <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-rose-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">1</div>
+              <h6 class="font-bold text-slate-800 text-xs flex items-center gap-1">
+                <i class="ph-bold ph-warning-circle text-rose-600"></i> ขั้นตอนที่ 1: ข้อมูลการแจ้งซ่อม
+              </h6>
+              <div class="bg-rose-50/50 p-2.5 rounded-xl border border-rose-100 mt-1 text-[11px] text-slate-700 leading-relaxed">
+                <div><b>อาการชำรุด:</b> ${initialReportText}</div>
+                <div class="text-[10px] text-slate-500 mt-1"><b>ผู้รายงาน:</b> ${h.reporter || '-'} ${h.phone ? `(📞 ${h.phone})` : ''}</div>
               </div>
-              <div>${contractText}</div>
             </div>
-          ` : ''}
 
-          <!-- ผู้บันทึก & ปุ่มดูไฟล์แนบ/ภาพสัญญา -->
-          <div class="flex justify-between items-center text-[10px] text-slate-400 pt-0.5">
-            <span class="flex items-center gap-1"><i class="ph-bold ph-user"></i> ${h.reporter || '-'} ${h.phone ? `(📞 ${h.phone})` : ''}</span>
+            <!-- ขั้นตอนที่ 2: ผลการดำเนินงานของช่าง / การประมาณราคา -->
+            ${techLogText ? `
+              <div class="relative pl-4">
+                <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-amber-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">2</div>
+                <h6 class="font-bold text-slate-800 text-xs flex items-center gap-1">
+                  <i class="ph-bold ph-wrench text-amber-600"></i> ขั้นตอนที่ 2: การบันทึกงานช่างเทคนิค / ส่งประมาณราคา
+                </h6>
+                <div class="bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/80 mt-1 text-[11px] text-slate-700 leading-relaxed space-y-1">
+                  <div><b>ผลจัดการหน้างาน:</b> ${techLogText}</div>
+                  ${materialsText ? `<div class="text-slate-600 border-t border-amber-200/60 pt-1 mt-1"><i class="ph-bold ph-package text-amber-700"></i> <b>รายการวัสดุอุปกรณ์ที่ใช้:</b> ${materialsText}</div>` : ''}
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- ขั้นตอนที่ 3: บันทึกปิดงานสัญญาจัดจ้าง (ถ้ามี) -->
+            ${contractText ? `
+              <div class="relative pl-4">
+                <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">3</div>
+                <h6 class="font-bold text-emerald-900 text-xs flex items-center gap-1">
+                  <i class="ph-bold ph-file-text text-emerald-600"></i> ขั้นตอนที่ 3: สรุปผลงานสัญญาจัดจ้าง
+                </h6>
+                <div class="bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-200 mt-1 text-[11px] text-slate-800 leading-relaxed">
+                  ${contractText}
+                </div>
+              </div>
+            ` : ''}
+
+          </div>
+
+          <!-- แกลเลอรีภาพถ่ายและไฟล์แนบประจำใบงาน -->
+          <div class="pt-2 border-t border-slate-100 flex justify-between items-center text-[11px]">
+            <span class="font-bold text-slate-500 flex items-center gap-1"><i class="ph-bold ph-paperclip"></i> ไฟล์และภาพแนบในใบงาน:</span>
             ${h.imageAfter ? `
-              <button type="button" onclick="openImageModal('${h.imageAfter}')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-md font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors">
-                <i class="ph-bold ph-image text-xs"></i> ดูไฟล์หลักฐาน/เอกสารสัญญา
+              <button type="button" onclick="openImageModal('${h.imageAfter}')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-lg font-bold text-[10px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer">
+                <i class="ph-bold ph-image text-xs"></i> 🔍 เปิดดูภาพถ่าย / เอกสารแนบ
               </button>
-            ` : '<span class="text-slate-300">ไม่มีไฟล์แนบ</span>'}
+            ` : '<span class="text-slate-300 text-[10px]">ไม่มีไฟล์แนบในใบงานนี้</span>'}
           </div>
 
         </div>
@@ -602,16 +645,16 @@ async function refreshHistoryView(equipId) {
     });
 
     container.innerHTML = `
-      <div class="flex flex-col gap-2 w-full">
+      <div class="flex flex-col gap-1 w-full">
         ${summaryHtml}
-        <div class="space-y-2.5 w-full">
+        <div class="w-full">
           ${timelineHtml}
         </div>
       </div>
     `;
 
   } catch (e) {
-    container.innerHTML = '<p class="text-rose-500 text-center py-4 text-xs font-bold">❌ เกิดข้อผิดพลาดในการโหลดประวัติการบำรุงรักษา</p>';
+    container.innerHTML = '<p class="text-rose-500 text-center py-4 text-xs font-bold">❌ เกิดข้อผิดพลาดในการดึงข้อมูลไทม์ไลน์ประวัติ</p>';
   }
 }
 
