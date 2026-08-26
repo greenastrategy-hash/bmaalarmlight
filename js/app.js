@@ -908,26 +908,35 @@ function exportHistoryPDF(equipId) {
 }
 
 // ==========================================
-// 📄 2. ฟังก์ชันเรียกออกใบเบิกวัสดุ (Server-side Trigger)
+// 📄 ฟังก์ชันเรียกออกใบเบิกวัสดุอุปกรณ์ (PDF)
 // ==========================================
 function triggerExportMaterialPDF(repairId) {
   if (!repairId) return;
-  if (typeof showQuietAlert === 'function') showQuietAlert("📄 ระบบกำลังสร้างเอกสารใบเบิกวัสดุอุปกรณ์ (PDF)...");
+
+  if (typeof showQuietAlert === 'function') {
+    showQuietAlert("📄 ระบบกำลังสร้างเอกสารใบเบิกวัสดุอุปกรณ์ (PDF)...");
+  }
 
   google.script.run
     .withSuccessHandler(function(res) {
-      if (res.success) {
+      if (res && res.success) {
         const a = document.createElement('a');
         a.href = "data:application/pdf;base64," + res.base64;
         a.download = res.filename;
         a.click();
-        if (typeof showQuietAlert === 'function') showQuietAlert("✅ ดาวน์โหลดใบเบิกวัสดุอุปกรณ์สำเร็จ");
+        if (typeof showQuietAlert === 'function') {
+          showQuietAlert("✅ ดาวน์โหลดใบเบิกวัสดุอุปกรณ์สำเร็จ");
+        }
       } else {
-        if (typeof showQuietAlert === 'function') showQuietAlert("❌ " + res.message);
+        if (typeof showQuietAlert === 'function') {
+          showQuietAlert("❌ " + (res ? res.message : "เกิดข้อผิดพลาดในการสร้างเอกสาร"));
+        }
       }
     })
     .withFailureHandler(function(err) {
-      if (typeof showQuietAlert === 'function') showQuietAlert("❌ ออกใบเบิกไม่สำเร็จ: " + err.toString());
+      if (typeof showQuietAlert === 'function') {
+        showQuietAlert("❌ ออกใบเบิกไม่สำเร็จ: " + err.toString());
+      }
     })
     .exportMaterialRequisitionPDF(repairId);
 }
@@ -2203,29 +2212,4 @@ function printWithdrawalForm(repairData) {
   `);
 
   printWindow.document.close();
-}
-
-// =========================================================================
-// 📄 ฟังก์ชันฝั่งหน้าบ้านสำหรับกดปุ่ม ใบเบิกวัสดุอุปกรณ์ (PDF)
-// =========================================================================
-function triggerExportMaterialPDF(repairId) {
-  if (!repairId) return;
-  showQuietAlert("📄 ระบบกำลังสร้างเอกสารใบเบิกวัสดุอุปกรณ์ (PDF)...");
-
-  google.script.run
-    .withSuccessHandler(function(res) {
-      if (res.success) {
-        var a = document.createElement('a');
-        a.href = "data:application/pdf;base64," + res.base64;
-        a.download = res.filename;
-        a.click();
-        showQuietAlert("✅ ดาวน์โหลดใบเบิกวัสดุอุปกรณ์สำเร็จ");
-      } else {
-        showQuietAlert("❌ " + res.message);
-      }
-    })
-    .withFailureHandler(function(err) {
-      showQuietAlert("❌ ออกใบเบิกไม่สำเร็จ: " + err.toString());
-    })
-    .exportMaterialRequisitionPDF(repairId);
 }
