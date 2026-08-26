@@ -695,24 +695,21 @@ async function refreshHistoryView(equipId) {
   const searchKey = equipId.toString().trim().toUpperCase();
   let history = window.allRepairHistoryData || [];
 
-  // 🟢 1. หากยังไม่มีข้อมูลใน Memory Cache ให้แสดงข้อความรอ และดึงจาก API เพียงครั้งเดียว
   if (history.length === 0) {
     container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs font-medium">⏳ กำลังโหลดประวัติไทม์ไลน์การบำรุงรักษาอย่างละเอียด...</p>';
     try {
       const res = await apiGet('getRepairHistory');
       if (res && res.success && Array.isArray(res.data)) {
         history = res.data;
-        window.allRepairHistoryData = res.data; // ⚡ บันทึกใส่ Memory Cache สำหรับใช้ครั้งถัดไปทันที
+        window.allRepairHistoryData = res.data;
       }
     } catch (e) {
-      console.warn("API load failed, fallback to memory:", e);
+      console.warn("API load failed:", e);
     }
   }
 
-  // 2. กรองประวัติทั้งหมดของครุภัณฑ์ ID นี้ (รวมทุกสถานะ)
   const filtered = history.filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === searchKey);
 
-  // 3. เรียงลำดับไทม์ไลน์: รายการล่าสุดอยู่บนสุด
   filtered.sort((a, b) => {
     const parseDate = (dStr) => {
       if (!dStr) return 0;
@@ -725,7 +722,6 @@ async function refreshHistoryView(equipId) {
     return parseDate(b.date) - parseDate(a.date);
   });
 
-  // อัปเดตรหัสใบงานในฟอร์มช่างกรณีมีใบงานค้าง
   const activeTicket = filtered.find(h => h.status === 'รอดำเนินการ' || h.status === 'รอจัดจ้าง');
   const techRepIdInput = document.getElementById('techRepairId');
   const badge = document.getElementById('techRepairIdBadge');
@@ -740,7 +736,6 @@ async function refreshHistoryView(equipId) {
     if (badge) badge.classList.add('hidden');
   }
 
-  // Header สรุปสถิติ + ปุ่ม Export PDF รายงานไทม์ไลน์ประวัติ
   const summaryHtml = `
     <div class="bg-slate-100 text-slate-700 p-2.5 rounded-xl border border-slate-200 text-[11px] font-bold flex justify-between items-center mb-3 shadow-2xs w-full">
       <span class="flex items-center gap-1"><i class="ph-bold ph-clock-counter-clockwise text-emerald-600"></i> ประวัติประมวลผลไทม์ไลน์: ${filtered.length} ใบงาน</span>
@@ -764,7 +759,6 @@ async function refreshHistoryView(equipId) {
     return;
   }
 
-  // 4. วนลูปแจงรายละเอียดทุกขั้นตอน + แสดงรูปภาพพรีวิว (Thumbnail)
   let timelineHtml = '';
   filtered.forEach((h) => {
     let badgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
@@ -778,7 +772,6 @@ async function refreshHistoryView(equipId) {
       accentBorder = 'border-l-amber-500';
     }
 
-    // 🔍 ถอดรหัสข้อความแยกตามขั้นตอน
     let fullText = h.details || '';
     let initialReportText = fullText;
     let techLogText = '';
@@ -811,7 +804,6 @@ async function refreshHistoryView(equipId) {
       techLogText = `[${typeVal}] ${detailsVal}`;
     }
 
-    // พรีวิวรูปภาพในแต่ละขั้นตอน
     const imagePreviewHtml = h.imageAfter ? `
       <div class="mt-2 pt-2 border-t border-slate-100 flex items-center gap-3">
         <div class="relative group cursor-pointer" onclick="openImageModal('${h.imageAfter}')">
@@ -827,7 +819,6 @@ async function refreshHistoryView(equipId) {
     timelineHtml += `
       <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm border-l-4 ${accentBorder} space-y-3 mb-3">
         
-        <!-- Header ใบงาน -->
         <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
           <div>
             <span class="font-extrabold text-slate-900 text-xs sm:text-sm">📌 ใบงานเลขที่: ${h.repairId}</span>
@@ -836,14 +827,14 @@ async function refreshHistoryView(equipId) {
           <span class="px-2.5 py-1 rounded-full border text-[10px] font-bold ${badgeStyle}">${h.status}</span>
         </div>
 
-        <!-- ไทม์ไลน์ขั้นตอน -->
         <div class="space-y-2.5 pl-1 border-l-2 border-slate-100 ml-1.5">
           
-          <!-- ขั้นตอนที่ 1: การแจ้งซ่อม -->
+          <!-- 🟢 ขั้นตอนที่ 1: เพิ่มวันที่แจ้งซ่อมกำกับ -->
           <div class="relative pl-4">
             <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-rose-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">1</div>
-            <h6 class="font-bold text-slate-800 text-xs flex items-center gap-1">
-              <i class="ph-bold ph-warning-circle text-rose-600"></i> ขั้นตอนที่ 1: ข้อมูลการแจ้งซ่อม
+            <h6 class="font-bold text-slate-800 text-xs flex items-center gap-1 justify-between pr-1">
+              <span><i class="ph-bold ph-warning-circle text-rose-600"></i> ขั้นตอนที่ 1: ข้อมูลการแจ้งซ่อม</span>
+              <span class="text-[10px] text-slate-400 font-normal">📅 ${h.date || '-'}</span>
             </h6>
             <div class="bg-rose-50/50 p-2.5 rounded-xl border border-rose-100 mt-1 text-[11px] text-slate-700 leading-relaxed">
               <div><b>อาการชำรุด:</b> ${initialReportText}</div>
@@ -851,12 +842,13 @@ async function refreshHistoryView(equipId) {
             </div>
           </div>
 
-          <!-- ขั้นตอนที่ 2: งานช่างเทคนิค / ส่งประมาณราคา -->
+          <!-- 🟢 ขั้นตอนที่ 2: เพิ่มวันที่บันทึกงานช่างกำกับ -->
           ${techLogText ? `
             <div class="relative pl-4">
               <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-amber-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">2</div>
-              <h6 class="font-bold text-slate-800 text-xs flex items-center gap-1">
-                <i class="ph-bold ph-wrench text-amber-600"></i> ขั้นตอนที่ 2: การบันทึกงานช่างเทคนิค / ส่งประมาณราคา
+              <h6 class="font-bold text-slate-800 text-xs flex items-center gap-1 justify-between pr-1">
+                <span><i class="ph-bold ph-wrench text-amber-600"></i> ขั้นตอนที่ 2: การบันทึกงานช่างเทคนิค / ส่งประมาณราคา</span>
+                <span class="text-[10px] text-slate-400 font-normal">📅 ${h.date || '-'}</span>
               </h6>
               <div class="bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/80 mt-1 text-[11px] text-slate-700 leading-relaxed space-y-1">
                 <div><b>ผลจัดการหน้างาน:</b> ${techLogText}</div>
@@ -865,12 +857,13 @@ async function refreshHistoryView(equipId) {
             </div>
           ` : ''}
 
-          <!-- ขั้นตอนที่ 3: สรุปงานจัดจ้างตามสัญญา -->
+          <!-- 🟢 ขั้นตอนที่ 3: เพิ่มวันที่ปิดงานสัญญาจัดจ้างกำกับ -->
           ${contractText ? `
             <div class="relative pl-4">
               <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">3</div>
-              <h6 class="font-bold text-emerald-900 text-xs flex items-center gap-1">
-                <i class="ph-bold ph-file-text text-emerald-600"></i> ขั้นตอนที่ 3: สรุปผลงานสัญญาจัดจ้าง
+              <h6 class="font-bold text-emerald-900 text-xs flex items-center gap-1 justify-between pr-1">
+                <span><i class="ph-bold ph-file-text text-emerald-600"></i> ขั้นตอนที่ 3: สรุปผลงานสัญญาจัดจ้าง</span>
+                <span class="text-[10px] text-slate-400 font-normal">📅 ${h.date || '-'}</span>
               </h6>
               <div class="bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-200 mt-1 text-[11px] text-slate-800 leading-relaxed">
                 ${contractText}
@@ -880,7 +873,6 @@ async function refreshHistoryView(equipId) {
 
         </div>
 
-        <!-- แสดงภาพประกอบประจำใบงาน -->
         ${imagePreviewHtml}
 
       </div>
@@ -1369,14 +1361,23 @@ function displaySuccessTableRecords() {
   let html = '';
 
   records.forEach(h => {
+    // แปลงข้อมูล Object h ให้ปลอดภัยสำหรับส่งเข้าฟังก์ชันพิมพ์ใบเบิก
+    const safeH = JSON.stringify(h).replace(/"/g, '&quot;');
+
     html += `
-      <tr class="hover:bg-slate-50 border-b last:border-none">
+      <tr class="hover:bg-slate-50 border-b last:border-none text-xs">
         <td class="p-2 text-center text-slate-600 font-medium">${h.date}<br/><b class="text-[10px] text-slate-400 font-bold">[${h.repairId}]</b></td>
         <td class="p-2 text-center font-bold text-slate-700">${h.assetId}</td>
         <td class="p-2 text-center"><span class="bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 rounded-full font-bold text-[11px]">${h.totalReports || 0} ครั้ง</span></td>
         <td class="p-2"><div class="font-semibold text-slate-800 whitespace-pre-line">${h.details}</div><div class="text-[10px] text-slate-400">👤 ช่าง/ผู้รับผิดชอบ: ${h.reporter} | 🏢 ${h.department} (📍 ${h.location})</div></td>
         <td class="p-2 text-center">${h.imageAfter ? `<button type="button" onclick="openImageModal('${h.imageAfter}')" class="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded border border-emerald-200 font-bold hover:bg-emerald-100 text-[11px] cursor-pointer">🔍 ดูภาพ</button>` : '<span class="text-slate-300 text-[11px]">ไม่มีภาพ</span>'}</td>
-        <td class="p-2 text-center"><button type="button" onclick="findAndOpenAsset('${h.assetId}')" class="bg-emerald-600 hover:bg-emerald-700 text-white py-1 px-2.5 rounded-lg font-bold text-[11px] cursor-pointer">👁️ ดูข้อมูล</button></td>
+        <td class="p-2 text-center">
+          <div class="flex items-center justify-center gap-1">
+            <!-- 🟢 เพิ่มปุ่มใบเบิกในตารางรายการที่ซ่อมบำรุงเสร็จสิ้นแล้ว -->
+            <button type="button" onclick="printWithdrawalForm(${safeH})" class="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 py-1 px-2 rounded-lg font-bold text-[11px] cursor-pointer shadow-2xs flex items-center gap-0.5">📄 ใบเบิก</button>
+            <button type="button" onclick="findAndOpenAsset('${h.assetId}')" class="bg-emerald-600 hover:bg-emerald-700 text-white py-1 px-2.5 rounded-lg font-bold text-[11px] cursor-pointer">👁️ ดูข้อมูล</button>
+          </div>
+        </td>
       </tr>
     `;
   });
@@ -2001,13 +2002,11 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
     return;
   }
 
-  // 🔒 ตรวจสอบสิทธิ์ผู้ใช้งาน
   const currentRole = window.userRole || sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || '';
   const isAuthorizedTech = (typeof isAdmin !== 'undefined' && isAdmin) ||
                            (typeof isTechnician !== 'undefined' && isTechnician) ||
                            (currentRole === 'admin' || currentRole === 'technician');
 
-  // ดึงข้อมูลเทคนิค
   const controlBox = item['ตู้ควบคุม/เบรกเกอร์'] || item['ตู้ควบคุม_เบรกเกอร์'] || item.controlBox || item['ตู้ควบคุม'] || '';
   const lampType = item['หลอดไฟที่ติดตั้ง'] || item.lampType || item['หลอดไฟ'] || '';
   const wireSize = item['ขนาดสายไฟ'] || item.wireSize || '';
@@ -2030,7 +2029,6 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
     `;
   }
 
-  // ดึงประวัติซ่อมบำรุง
   let historyList = [];
   const searchKey = String(equipId).trim().toUpperCase();
   
@@ -2044,7 +2042,6 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
     historyList = memoryCache.filter(h => h && h.assetId && String(h.assetId).trim().toUpperCase() === searchKey);
   }
 
-  // 🟢 ถอดรหัสข้อความ OP_TYPE ออกเป็นรูปแบบไทม์ไลน์อ่านง่ายลงในตาราง PDF
   let historyRowsHtml = '';
   if (historyList.length > 0) {
     historyRowsHtml = historyList.map(h => {
@@ -2082,17 +2079,17 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
         techLogText = `[${typeVal}] ${detailsVal}`;
       }
 
-      // สร้างข้อความแยกบรรทัดแสดงขั้นตอนใน PDF
-      let formattedDetailsHtml = `<div style="line-height:1.4;">`;
-      formattedDetailsHtml += `<div><b>1. แจ้งซ่อม:</b> ${initialReportText}</div>`;
+      // 🟢 แสดงวันที่กำกับในข้อความแต่ละขั้นตอนบน PDF
+      let formattedDetailsHtml = `<div style="line-height:1.45;">`;
+      formattedDetailsHtml += `<div><b>1. แจ้งซ่อม (${h.date || '-'}):</b> ${initialReportText}</div>`;
       if (techLogText) {
-        formattedDetailsHtml += `<div style="margin-top:2px; color:#1e3a8a;"><b>2. ผลงานช่าง:</b> ${techLogText}</div>`;
+        formattedDetailsHtml += `<div style="margin-top:2px; color:#1e3a8a;"><b>2. ผลงานช่าง (${h.date || '-'}):</b> ${techLogText}</div>`;
       }
       if (materialsText) {
         formattedDetailsHtml += `<div style="margin-top:1px; color:#475569; font-size:10px;"><b>📦 วัสดุอุปกรณ์ที่ใช้:</b> ${materialsText}</div>`;
       }
       if (contractText) {
-        formattedDetailsHtml += `<div style="margin-top:2px; color:#065f46;"><b>3. งานสัญญาจัดจ้าง:</b> ${contractText}</div>`;
+        formattedDetailsHtml += `<div style="margin-top:2px; color:#065f46;"><b>3. งานสัญญาจัดจ้าง (${h.date || '-'}):</b> ${contractText}</div>`;
       }
       formattedDetailsHtml += `</div>`;
 
