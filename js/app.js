@@ -79,64 +79,76 @@ async function loadRepairHistoryTimeline(assetId) {
 
 // 🛠️ 3. เรนเดอร์ส่วนแสดงและบันทึกข้อมูลทางเทคนิค (เฉพาะ Admin & Technician)
 function renderTechSpecsSection(item) {
-  const role = window.userRole || sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || '';
-  const isAuthorized = (role === 'admin' || role === 'technician');
   const container = document.getElementById('wsTechSpecsContainer');
   if (!container) return;
 
+  // 🔒 ตรวจสอบสิทธิ์ผู้ใช้งาน (ครอบคลุมทั้งตัวแปร Global และ Storage)
+  const role = window.userRole || sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || '';
+  const isAuthorized = (typeof isAdmin !== 'undefined' && isAdmin) ||
+                       (typeof isTechnician !== 'undefined' && isTechnician) ||
+                       (role === 'admin' || role === 'technician');
+
   if (!isAuthorized) {
     container.classList.add('hidden');
+    container.innerHTML = '';
     return;
   }
 
+  // ดึงข้อมูลเทคนิคเฉพาะ (รองรับการแมปชื่อคอลัมน์หลากหลายรูปแบบ)
   const cBox = item['ตู้ควบคุม_เบรกเกอร์'] || item['ตู้ควบคุม/เบรกเกอร์'] || item.controlBox || '';
   const lType = item['หลอดไฟที่ติดตั้ง'] || item.lampType || '';
   const wSize = item['ขนาดสายไฟ'] || item.wireSize || '';
   const eTech = item['ข้อมูลเทคนิคอื่นๆ'] || item['อื่นๆ'] || item.extraTech || '';
 
+  // Escaping Double Quotes สำหรับใส่ใน Value ของ Form Input
+  const safeCBox = String(cBox).replace(/"/g, '&quot;');
+  const safeLType = String(lType).replace(/"/g, '&quot;');
+  const safeWSize = String(wSize).replace(/"/g, '&quot;');
+  const safeETech = String(eTech).replace(/"/g, '&quot;');
+
   container.classList.remove('hidden');
   container.innerHTML = `
-    <div class="mt-3 p-3 bg-sky-50/70 border border-sky-200 rounded-xl text-xs">
-      <div class="flex items-center justify-between mb-2">
+    <div class="mt-3 p-3 bg-sky-50/80 border border-sky-200 rounded-xl text-xs shadow-xs">
+      <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-sky-200/80">
         <span class="font-bold text-sky-900 flex items-center gap-1">
           ⚡ ข้อมูลเทคนิคเฉพาะ (สิทธิ์ Admin & Technician)
         </span>
-        <button type="button" onclick="toggleTechEditForm('${item.ID}')" class="px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg text-[11px] transition shadow-sm">
+        <button type="button" onclick="toggleTechEditForm('${item.ID}')" class="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg text-[11px] transition shadow-xs cursor-pointer">
           ✏️ บันทึก/แก้ไขข้อมูลเทคนิค
         </button>
       </div>
 
       <!-- แสดงข้อมูลปกติ -->
       <div id="techDisplayView_${item.ID}" class="grid grid-cols-2 gap-2 text-slate-700">
-        <div><b>🗄️ ตู้ควบคุม/เบรกเกอร์:</b> <span class="text-slate-900 font-medium">${cBox || '-'}</span></div>
-        <div><b>💡 หลอดไฟที่ติดตั้ง:</b> <span class="text-slate-900 font-medium">${lType || '-'}</span></div>
-        <div><b>🔌 ขนาดสายไฟ:</b> <span class="text-slate-900 font-medium">${wSize || '-'}</span></div>
-        <div><b>📝 อื่นๆ ระบุ:</b> <span class="text-slate-900 font-medium">${eTech || '-'}</span></div>
+        <div><b>🗄️ ตู้ควบคุม/เบรกเกอร์:</b> <span class="text-slate-900 font-medium">${cBox || '<i class="text-slate-400 font-normal">ยังไม่ระบุ</i>'}</span></div>
+        <div><b>💡 หลอดไฟที่ติดตั้ง:</b> <span class="text-slate-900 font-medium">${lType || '<i class="text-slate-400 font-normal">ยังไม่ระบุ</i>'}</span></div>
+        <div><b>🔌 ขนาดสายไฟ:</b> <span class="text-slate-900 font-medium">${wSize || '<i class="text-slate-400 font-normal">ยังไม่ระบุ</i>'}</span></div>
+        <div><b>📝 อื่นๆ ระบุ:</b> <span class="text-slate-900 font-medium">${eTech || '<i class="text-slate-400 font-normal">ยังไม่ระบุ</i>'}</span></div>
       </div>
 
       <!-- ฟอร์มแก้ไขข้อมูลเทคนิค -->
-      <form id="techEditForm_${item.ID}" class="hidden space-y-2 mt-2 pt-2 border-t border-sky-200" onsubmit="submitTechSpecs(event, '${item.ID}')">
+      <form id="techEditForm_${item.ID}" class="hidden space-y-2.5 mt-2 pt-2 border-t border-sky-200/80" onsubmit="submitTechSpecs(event, '${item.ID}')">
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="block text-[11px] font-semibold text-slate-600 mb-1">ตู้ควบคุม / เบรกเกอร์</label>
-            <input type="text" id="inputControlBox_${item.ID}" value="${cBox}" class="w-full px-2.5 py-1 text-xs border rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น 30A 2P Cutout">
+            <input type="text" id="inputControlBox_${item.ID}" value="${safeCBox}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น 30A 2P Cutout">
           </div>
           <div>
             <label class="block text-[11px] font-semibold text-slate-600 mb-1">หลอดไฟที่ติดตั้ง</label>
-            <input type="text" id="inputLampType_${item.ID}" value="${lType}" class="w-full px-2.5 py-1 text-xs border rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น LED Highbay 150W">
+            <input type="text" id="inputLampType_${item.ID}" value="${safeLType}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น LED Highbay 150W">
           </div>
           <div>
             <label class="block text-[11px] font-semibold text-slate-600 mb-1">ขนาดสายไฟ</label>
-            <input type="text" id="inputWireSize_${item.ID}" value="${wSize}" class="w-full px-2.5 py-1 text-xs border rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น NYY 2x2.5 sq.mm">
+            <input type="text" id="inputWireSize_${item.ID}" value="${safeWSize}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น NYY 2x2.5 sq.mm">
           </div>
           <div>
             <label class="block text-[11px] font-semibold text-slate-600 mb-1">อื่นๆ ระบุ</label>
-            <input type="text" id="inputExtraTech_${item.ID}" value="${eTech}" class="w-full px-2.5 py-1 text-xs border rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="ระบุเพิ่มเติม...">
+            <input type="text" id="inputExtraTech_${item.ID}" value="${safeETech}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="ระบุเพิ่มเติม...">
           </div>
         </div>
         <div class="flex justify-end gap-2 pt-1">
-          <button type="button" onclick="toggleTechEditForm('${item.ID}')" class="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg text-xs">ยกเลิก</button>
-          <button type="submit" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-xs shadow-sm">💾 บันทึกข้อมูลเทคนิค</button>
+          <button type="button" onclick="toggleTechEditForm('${item.ID}')" class="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-medium cursor-pointer">ยกเลิก</button>
+          <button type="submit" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-xs shadow-xs cursor-pointer">💾 บันทึกข้อมูลเทคนิค</button>
         </div>
       </form>
     </div>
@@ -629,203 +641,216 @@ function closeModal() { document.getElementById('detailsModal')?.classList.add('
 // ==========================================
 // 📜 แสดงประวัติการบำรุงรักษาอย่างละเอียด ( Timeline View )
 // ==========================================
+// ==========================================
+// 📜 แสดงประวัติการบำรุงรักษาอย่างละเอียด ( Timeline View + Cache Optimization )
+// ==========================================
 async function refreshHistoryView(equipId) {
   const container = document.getElementById('wsRepairHistoryContainer');
   if (!container) return;
-  container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs font-medium">⏳ กำลังโหลดประวัติไทม์ไลน์การบำรุงรักษาอย่างละเอียด...</p>';
 
-  try {
-    const res = await apiGet('getRepairHistory');
-    const history = res.data || [];
-    const searchKey = equipId.toString().trim().toUpperCase();
-    
-    // 1. กรองประวัติทั้งหมดของครุภัณฑ์ ID นี้ (รวมทุกสถานะ)
-    const filtered = history.filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === searchKey);
+  const searchKey = equipId.toString().trim().toUpperCase();
+  let history = window.allRepairHistoryData || [];
 
-    // 2. เรียงลำดับไทม์ไลน์: รายการล่าสุดอยู่บนสุด
-    filtered.sort((a, b) => {
-      const parseDate = (dStr) => {
-        if (!dStr) return 0;
-        const p = dStr.split('/');
-        if (p.length < 3) return 0;
-        let y = parseInt(p[2], 10);
-        if (y > 2400) y -= 543;
-        return new Date(y, parseInt(p[1], 10) - 1, parseInt(p[0], 10)).getTime();
-      };
-      return parseDate(b.date) - parseDate(a.date);
-    });
-
-    // อัปเดตรหัสใบงานในฟอร์มช่างกรณีมีใบงานค้าง
-    const activeTicket = filtered.find(h => h.status === 'รอดำเนินการ' || h.status === 'รอจัดจ้าง');
-    if (activeTicket) {
-      const techRepIdInput = document.getElementById('techRepairId');
-      const badge = document.getElementById('techRepairIdBadge');
-      if (techRepIdInput) techRepIdInput.value = activeTicket.repairId;
-      if (badge) {
-        badge.innerText = `📋 ดำเนินการใบงาน: ${activeTicket.repairId} (${activeTicket.status})`;
-        badge.classList.remove('hidden');
+  // 🟢 1. หากยังไม่มีข้อมูลใน Memory Cache ให้แสดงข้อความรอ และดึงจาก API เพียงครั้งเดียว
+  if (history.length === 0) {
+    container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs font-medium">⏳ กำลังโหลดประวัติไทม์ไลน์การบำรุงรักษาอย่างละเอียด...</p>';
+    try {
+      const res = await apiGet('getRepairHistory');
+      if (res && res.success && Array.isArray(res.data)) {
+        history = res.data;
+        window.allRepairHistoryData = res.data; // ⚡ บันทึกใส่ Memory Cache สำหรับใช้ครั้งถัดไปทันที
       }
+    } catch (e) {
+      console.warn("API load failed, fallback to memory:", e);
     }
+  }
 
-    // Header สรุปสถิติ + ปุ่ม Export PDF รายงานไทม์ไลน์ประวัติ
-    const summaryHtml = `
-      <div class="bg-slate-100 text-slate-700 p-2.5 rounded-xl border border-slate-200 text-[11px] font-bold flex justify-between items-center mb-3 shadow-2xs w-full">
-        <span class="flex items-center gap-1"><i class="ph-bold ph-clock-counter-clockwise text-emerald-600"></i> ประวัติประมวลผลไทม์ไลน์: ${filtered.length} ใบงาน</span>
-        ${filtered.length > 0 ? `
-          <button type="button" onclick="exportHistoryPDF('${equipId}')" class="bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer">
-            <i class="ph-bold ph-file-pdf text-sm"></i> Export PDF
-          </button>
-        ` : ''}
-      </div>
-    `;
+  // 2. กรองประวัติทั้งหมดของครุภัณฑ์ ID นี้ (รวมทุกสถานะ)
+  const filtered = history.filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === searchKey);
 
-    if (filtered.length === 0) {
-      container.innerHTML = `
-        <div class="flex flex-col gap-1 w-full">
-          ${summaryHtml}
-          <div class="text-slate-400 text-center py-8 bg-white border border-slate-200 rounded-xl shadow-2xs text-xs">
-            <i class="ph-bold ph-folder-open text-2xl text-slate-300 mb-1 block"></i>
-            ไม่พบประวัติบันทึกข้อมูลสำหรับครุภัณฑ์นี้
-          </div>
-        </div>`;
-      return;
+  // 3. เรียงลำดับไทม์ไลน์: รายการล่าสุดอยู่บนสุด
+  filtered.sort((a, b) => {
+    const parseDate = (dStr) => {
+      if (!dStr) return 0;
+      const p = dStr.split('/');
+      if (p.length < 3) return 0;
+      let y = parseInt(p[2], 10);
+      if (y > 2400) y -= 543;
+      return new Date(y, parseInt(p[1], 10) - 1, parseInt(p[0], 10)).getTime();
+    };
+    return parseDate(b.date) - parseDate(a.date);
+  });
+
+  // อัปเดตรหัสใบงานในฟอร์มช่างกรณีมีใบงานค้าง
+  const activeTicket = filtered.find(h => h.status === 'รอดำเนินการ' || h.status === 'รอจัดจ้าง');
+  const techRepIdInput = document.getElementById('techRepairId');
+  const badge = document.getElementById('techRepairIdBadge');
+
+  if (activeTicket) {
+    if (techRepIdInput) techRepIdInput.value = activeTicket.repairId;
+    if (badge) {
+      badge.innerText = `📋 ดำเนินการใบงาน: ${activeTicket.repairId} (${activeTicket.status})`;
+      badge.classList.remove('hidden');
     }
+  } else {
+    if (badge) badge.classList.add('hidden');
+  }
 
-    // 3. วนลูปแจงรายละเอียดทุกขั้นตอน + แสดงรูปภาพพรีวิว (Thumbnail)
-    let timelineHtml = '';
-    filtered.forEach((h) => {
-      let badgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      let accentBorder = 'border-l-emerald-500';
-      
-      if (h.status === 'ชำรุด' || h.status === 'รอดำเนินการ') {
-        badgeStyle = 'bg-rose-50 text-rose-700 border-rose-200';
-        accentBorder = 'border-l-rose-500';
-      } else if (h.status === 'รอจัดจ้าง') {
-        badgeStyle = 'bg-amber-50 text-amber-800 border-amber-300';
-        accentBorder = 'border-l-amber-500';
-      }
+  // Header สรุปสถิติ + ปุ่ม Export PDF รายงานไทม์ไลน์ประวัติ
+  const summaryHtml = `
+    <div class="bg-slate-100 text-slate-700 p-2.5 rounded-xl border border-slate-200 text-[11px] font-bold flex justify-between items-center mb-3 shadow-2xs w-full">
+      <span class="flex items-center gap-1"><i class="ph-bold ph-clock-counter-clockwise text-emerald-600"></i> ประวัติประมวลผลไทม์ไลน์: ${filtered.length} ใบงาน</span>
+      ${filtered.length > 0 ? `
+        <button type="button" onclick="exportHistoryPDF('${equipId}')" class="bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer">
+          <i class="ph-bold ph-file-pdf text-sm"></i> Export PDF
+        </button>
+      ` : ''}
+    </div>
+  `;
 
-      // 🔍 ถอดรหัสข้อความแยกตามขั้นตอน
-      let fullText = h.details || '';
-      let initialReportText = fullText;
-      let techLogText = '';
-      let materialsText = '';
-      let contractText = '';
-
-      if (fullText.includes('[บันทึกจัดจ้าง]:')) {
-        const parts = fullText.split('[บันทึกจัดจ้าง]:');
-        fullText = parts[0].trim();
-        contractText = parts[1].trim();
-      }
-
-      if (fullText.includes('[ช่างบันทึก]:')) {
-        const parts = fullText.split('[ช่างบันทึก]:');
-        initialReportText = parts[0].trim();
-        techLogText = parts[1].trim();
-      } else if (fullText.includes('OP_TYPE:')) {
-        techLogText = fullText;
-        initialReportText = 'แจ้งซ่อมผ่านระบบ';
-      }
-
-      if (techLogText.includes('OP_TYPE:')) {
-        const opParts = techLogText.split('##');
-        let detailsVal = '', typeVal = '';
-        opParts.forEach(p => {
-          if (p.startsWith('OP_TYPE:')) typeVal = p.replace('OP_TYPE:', '');
-          if (p.startsWith('DETAILS:')) detailsVal = p.replace('DETAILS:', '');
-          if (p.startsWith('MATERIALS:')) materialsText = p.replace('MATERIALS:', '');
-        });
-        techLogText = `[${typeVal}] ${detailsVal}`;
-      }
-
-      // พรีวิวรูปภาพในแต่ละขั้นตอน
-      const imagePreviewHtml = h.imageAfter ? `
-        <div class="mt-2 pt-2 border-t border-slate-100 flex items-center gap-3">
-          <div class="relative group cursor-pointer" onclick="openImageModal('${h.imageAfter}')">
-            <img src="${h.imageAfter}" alt="หลักฐาน" class="h-16 w-20 object-cover rounded-lg border border-slate-200 shadow-2xs group-hover:opacity-90 transition-opacity">
-          </div>
-          <div class="text-[10px] text-slate-500 space-y-0.5">
-            <span class="font-bold text-slate-700 block">📷 ภาพถ่าย/เอกสารหลักฐานประกอบ</span>
-            <span class="text-emerald-700 cursor-pointer hover:underline font-medium" onclick="openImageModal('${h.imageAfter}')">คลิกเพื่อดูภาพขยายเต็มจอ</span>
-          </div>
-        </div>
-      ` : '';
-
-      timelineHtml += `
-        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm border-l-4 ${accentBorder} space-y-3 mb-3">
-          
-          <!-- Header ใบงาน -->
-          <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
-            <div>
-              <span class="font-extrabold text-slate-900 text-xs sm:text-sm">📌 ใบงานเลขที่: ${h.repairId}</span>
-              <span class="text-[11px] text-slate-400 font-medium ml-2">📅 ${h.date}</span>
-            </div>
-            <span class="px-2.5 py-1 rounded-full border text-[10px] font-bold ${badgeStyle}">${h.status}</span>
-          </div>
-
-          <!-- ไทม์ไลน์ขั้นตอน -->
-          <div class="space-y-2.5 pl-1 border-l-2 border-slate-100 ml-1.5">
-            
-            <!-- ขั้นตอนที่ 1: การแจ้งซ่อม -->
-            <div class="relative pl-4">
-              <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-rose-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">1</div>
-              <h6 class="font-bold text-slate-800 text-xs flex items-center gap-1">
-                <i class="ph-bold ph-warning-circle text-rose-600"></i> ขั้นตอนที่ 1: ข้อมูลการแจ้งซ่อม
-              </h6>
-              <div class="bg-rose-50/50 p-2.5 rounded-xl border border-rose-100 mt-1 text-[11px] text-slate-700 leading-relaxed">
-                <div><b>อาการชำรุด:</b> ${initialReportText}</div>
-                <div class="text-[10px] text-slate-500 mt-1"><b>ผู้รายงาน:</b> ${h.reporter || '-'} ${h.phone ? `(📞 ${h.phone})` : ''}</div>
-              </div>
-            </div>
-
-            <!-- ขั้นตอนที่ 2: งานช่างเทคนิค / ส่งประมาณราคา -->
-            ${techLogText ? `
-              <div class="relative pl-4">
-                <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-amber-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">2</div>
-                <h6 class="font-bold text-slate-800 text-xs flex items-center gap-1">
-                  <i class="ph-bold ph-wrench text-amber-600"></i> ขั้นตอนที่ 2: การบันทึกงานช่างเทคนิค / ส่งประมาณราคา
-                </h6>
-                <div class="bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/80 mt-1 text-[11px] text-slate-700 leading-relaxed space-y-1">
-                  <div><b>ผลจัดการหน้างาน:</b> ${techLogText}</div>
-                  ${materialsText ? `<div class="text-slate-600 border-t border-amber-200/60 pt-1 mt-1"><i class="ph-bold ph-package text-amber-700"></i> <b>รายการวัสดุอุปกรณ์ที่ใช้:</b> ${materialsText}</div>` : ''}
-                </div>
-              </div>
-            ` : ''}
-
-            <!-- ขั้นตอนที่ 3: สรุปงานจัดจ้างตามสัญญา -->
-            ${contractText ? `
-              <div class="relative pl-4">
-                <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">3</div>
-                <h6 class="font-bold text-emerald-900 text-xs flex items-center gap-1">
-                  <i class="ph-bold ph-file-text text-emerald-600"></i> ขั้นตอนที่ 3: สรุปผลงานสัญญาจัดจ้าง
-                </h6>
-                <div class="bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-200 mt-1 text-[11px] text-slate-800 leading-relaxed">
-                  ${contractText}
-                </div>
-              </div>
-            ` : ''}
-
-          </div>
-
-          <!-- แสดงภาพประกอบประจำใบงาน -->
-          ${imagePreviewHtml}
-
-        </div>
-      `;
-    });
-
+  if (filtered.length === 0) {
     container.innerHTML = `
       <div class="flex flex-col gap-1 w-full">
         ${summaryHtml}
-        <div id="pdfPrintArea" class="w-full">
-          ${timelineHtml}
+        <div class="text-slate-400 text-center py-8 bg-white border border-slate-200 rounded-xl shadow-2xs text-xs">
+          <i class="ph-bold ph-folder-open text-2xl text-slate-300 mb-1 block"></i>
+          ไม่พบประวัติบันทึกข้อมูลสำหรับครุภัณฑ์นี้
+        </div>
+      </div>`;
+    return;
+  }
+
+  // 4. วนลูปแจงรายละเอียดทุกขั้นตอน + แสดงรูปภาพพรีวิว (Thumbnail)
+  let timelineHtml = '';
+  filtered.forEach((h) => {
+    let badgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    let accentBorder = 'border-l-emerald-500';
+    
+    if (h.status === 'ชำรุด' || h.status === 'รอดำเนินการ') {
+      badgeStyle = 'bg-rose-50 text-rose-700 border-rose-200';
+      accentBorder = 'border-l-rose-500';
+    } else if (h.status === 'รอจัดจ้าง') {
+      badgeStyle = 'bg-amber-50 text-amber-800 border-amber-300';
+      accentBorder = 'border-l-amber-500';
+    }
+
+    // 🔍 ถอดรหัสข้อความแยกตามขั้นตอน
+    let fullText = h.details || '';
+    let initialReportText = fullText;
+    let techLogText = '';
+    let materialsText = '';
+    let contractText = '';
+
+    if (fullText.includes('[บันทึกจัดจ้าง]:')) {
+      const parts = fullText.split('[บันทึกจัดจ้าง]:');
+      fullText = parts[0].trim();
+      contractText = parts[1].trim();
+    }
+
+    if (fullText.includes('[ช่างบันทึก]:')) {
+      const parts = fullText.split('[ช่างบันทึก]:');
+      initialReportText = parts[0].trim();
+      techLogText = parts[1].trim();
+    } else if (fullText.includes('OP_TYPE:')) {
+      techLogText = fullText;
+      initialReportText = 'แจ้งซ่อมผ่านระบบ';
+    }
+
+    if (techLogText.includes('OP_TYPE:')) {
+      const opParts = techLogText.split('##');
+      let detailsVal = '', typeVal = '';
+      opParts.forEach(p => {
+        if (p.startsWith('OP_TYPE:')) typeVal = p.replace('OP_TYPE:', '');
+        if (p.startsWith('DETAILS:')) detailsVal = p.replace('DETAILS:', '');
+        if (p.startsWith('MATERIALS:')) materialsText = p.replace('MATERIALS:', '');
+      });
+      techLogText = `[${typeVal}] ${detailsVal}`;
+    }
+
+    // พรีวิวรูปภาพในแต่ละขั้นตอน
+    const imagePreviewHtml = h.imageAfter ? `
+      <div class="mt-2 pt-2 border-t border-slate-100 flex items-center gap-3">
+        <div class="relative group cursor-pointer" onclick="openImageModal('${h.imageAfter}')">
+          <img src="${h.imageAfter}" alt="หลักฐาน" class="h-16 w-20 object-cover rounded-lg border border-slate-200 shadow-2xs group-hover:opacity-90 transition-opacity">
+        </div>
+        <div class="text-[10px] text-slate-500 space-y-0.5">
+          <span class="font-bold text-slate-700 block">📷 ภาพถ่าย/เอกสารหลักฐานประกอบ</span>
+          <span class="text-emerald-700 cursor-pointer hover:underline font-medium" onclick="openImageModal('${h.imageAfter}')">คลิกเพื่อดูภาพขยายเต็มจอ</span>
         </div>
       </div>
-    `;
+    ` : '';
 
-  } catch (e) {
-    container.innerHTML = '<p class="text-rose-500 text-center py-4 text-xs font-bold">❌ เกิดข้อผิดพลาดในการดึงข้อมูลไทม์ไลน์ประวัติ</p>';
-  }
+    timelineHtml += `
+      <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm border-l-4 ${accentBorder} space-y-3 mb-3">
+        
+        <!-- Header ใบงาน -->
+        <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
+          <div>
+            <span class="font-extrabold text-slate-900 text-xs sm:text-sm">📌 ใบงานเลขที่: ${h.repairId}</span>
+            <span class="text-[11px] text-slate-400 font-medium ml-2">📅 ${h.date}</span>
+          </div>
+          <span class="px-2.5 py-1 rounded-full border text-[10px] font-bold ${badgeStyle}">${h.status}</span>
+        </div>
+
+        <!-- ไทม์ไลน์ขั้นตอน -->
+        <div class="space-y-2.5 pl-1 border-l-2 border-slate-100 ml-1.5">
+          
+          <!-- ขั้นตอนที่ 1: การแจ้งซ่อม -->
+          <div class="relative pl-4">
+            <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-rose-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">1</div>
+            <h6 class="font-bold text-slate-800 text-xs flex items-center gap-1">
+              <i class="ph-bold ph-warning-circle text-rose-600"></i> ขั้นตอนที่ 1: ข้อมูลการแจ้งซ่อม
+            </h6>
+            <div class="bg-rose-50/50 p-2.5 rounded-xl border border-rose-100 mt-1 text-[11px] text-slate-700 leading-relaxed">
+              <div><b>อาการชำรุด:</b> ${initialReportText}</div>
+              <div class="text-[10px] text-slate-500 mt-1"><b>ผู้รายงาน:</b> ${h.reporter || '-'} ${h.phone ? `(📞 ${h.phone})` : ''}</div>
+            </div>
+          </div>
+
+          <!-- ขั้นตอนที่ 2: งานช่างเทคนิค / ส่งประมาณราคา -->
+          ${techLogText ? `
+            <div class="relative pl-4">
+              <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-amber-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">2</div>
+              <h6 class="font-bold text-slate-800 text-xs flex items-center gap-1">
+                <i class="ph-bold ph-wrench text-amber-600"></i> ขั้นตอนที่ 2: การบันทึกงานช่างเทคนิค / ส่งประมาณราคา
+              </h6>
+              <div class="bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/80 mt-1 text-[11px] text-slate-700 leading-relaxed space-y-1">
+                <div><b>ผลจัดการหน้างาน:</b> ${techLogText}</div>
+                ${materialsText ? `<div class="text-slate-600 border-t border-amber-200/60 pt-1 mt-1"><i class="ph-bold ph-package text-amber-700"></i> <b>รายการวัสดุอุปกรณ์ที่ใช้:</b> ${materialsText}</div>` : ''}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- ขั้นตอนที่ 3: สรุปงานจัดจ้างตามสัญญา -->
+          ${contractText ? `
+            <div class="relative pl-4">
+              <div class="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-[8px] text-white font-bold">3</div>
+              <h6 class="font-bold text-emerald-900 text-xs flex items-center gap-1">
+                <i class="ph-bold ph-file-text text-emerald-600"></i> ขั้นตอนที่ 3: สรุปผลงานสัญญาจัดจ้าง
+              </h6>
+              <div class="bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-200 mt-1 text-[11px] text-slate-800 leading-relaxed">
+                ${contractText}
+              </div>
+            </div>
+          ` : ''}
+
+        </div>
+
+        <!-- แสดงภาพประกอบประจำใบงาน -->
+        ${imagePreviewHtml}
+
+      </div>
+    `;
+  });
+
+  container.innerHTML = `
+    <div class="flex flex-col gap-1 w-full">
+      ${summaryHtml}
+      <div id="pdfPrintArea" class="w-full">
+        ${timelineHtml}
+      </div>
+    </div>
+  `;
 }
 
 // ==========================================
@@ -1656,6 +1681,11 @@ async function handleAuthSubmit(e) {
       isTechnician = (res.role === "technician");
       isAdmin = (res.role === "admin");
       currentDepartment = res.dept;
+
+      // 🟢 บันทึกสิทธิ์ผู้ใช้งานเข้าระบบสำหรับเปิดการ์ดข้อมูลเทคนิค (Modal & PDF)
+      window.userRole = res.role;
+      sessionStorage.setItem('userRole', res.role);
+      localStorage.setItem('userRole', res.role);
 
       document.getElementById('logoutBtn')?.classList.remove('hidden');
       document.getElementById('authBtn')?.classList.add('hidden');
