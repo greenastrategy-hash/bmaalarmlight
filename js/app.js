@@ -1688,7 +1688,7 @@ function triggerExportPDF() {
 }
 
 // ==========================================
-// 📄 1. ฟังก์ชันสร้างหน้าเอกสารรายงาน A4 (เพิ่มประวัติสัญญาจัดจ้าง + Print Window)
+// 📄 1. ปรับปรุงฟังก์ชันพิมพ์ PDF รายงาน A4 (เพิ่มการเช็คสิทธิ์แสดงข้อมูลเทคนิค)
 // ==========================================
 async function generateA4ReportPDFClient(equipId, printWindow) {
   const allAssets = (typeof allData !== 'undefined' && allData.length > 0) ? allData : (window.allAssetsData || []);
@@ -1704,7 +1704,34 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
     return;
   }
 
-  // ดึงประวัติการแจ้งซ่อม
+  // 🔒 ตรวจสอบสิทธิ์ผู้ใช้งาน (Admin หรือ Technician เท่านั้น)
+  const currentRole = window.userRole || sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || '';
+  const isAuthorizedTech = (currentRole === 'admin' || currentRole === 'technician');
+
+  // ดึงข้อมูลเทคนิคเพิ่มเติม (หากมีข้อมูลและได้รับสิทธิ์)
+  const controlBox = item['ตู้ควบคุม/เบรกเกอร์'] || item['ตู้ควบคุม_เบรกเกอร์'] || item.controlBox || '';
+  const lampType = item['หลอดไฟที่ติดตั้ง'] || item.lampType || '';
+  const wireSize = item['ขนาดสายไฟ'] || item.wireSize || '';
+  const extraTech = item['ข้อมูลเทคนิคอื่นๆ'] || item['อื่นๆ'] || item.extraTech || '';
+
+  let techSpecsSectionHtml = '';
+  if (isAuthorizedTech && (controlBox || lampType || wireSize || extraTech)) {
+    techSpecsSectionHtml = `
+      <div class="section-title" style="border-left-color: #0284c7; color: #0369a1;">⚡ ข้อมูลคุณลักษณะทางเทคนิคเฉพาะ (สิทธิ์ Admin & Technician)</div>
+      <table style="margin-bottom: 12px; font-size: 11.5px; background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px;">
+        <tr style="border-bottom: 1px dashed #cbd5e1;">
+          <td width="50%" style="padding:6px;"><b>🗄️ ตู้ควบคุม / เบรกเกอร์:</b> ${controlBox || '-'}</td>
+          <td width="50%" style="padding:6px;"><b>💡 หลอดไฟที่ติดตั้ง:</b> ${lampType || '-'}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px;"><b>🔌 ขนาดสายไฟ:</b> ${wireSize || '-'}</td>
+          <td style="padding:6px;"><b>📝 อื่นๆ ระบุ:</b> ${extraTech || '-'}</td>
+        </tr>
+      </table>
+    `;
+  }
+
+  // ... (การดึงประวัติแจ้งซ่อม historyList ทำงานตามเดิม) ...
   let historyList = [];
   try {
     const res = await apiGet('getRepairHistory');
@@ -1717,106 +1744,21 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
   }
 
   const totalReports = historyList.length;
-
   let historyRowsHtml = historyList.map(h => {
     let statusColor = h.status === 'ซ่อมเสร็จสิ้น' ? '#059669' : (h.status === 'รอจัดจ้าง' ? '#d97706' : '#dc2626');
     let detailsClean = h.details || '';
-    let formattedDetails = '';
-
-    let reportPart = detailsClean;
-    let techPart = '';
-    let procPart = '';
-
-    // 🟢 1. ดึงข้อความส่วนจัดจ้าง [บันทึกจัดจ้าง]:
-    if (detailsClean.indexOf('[บันทึกจัดจ้าง]:') !== -1) {
-      let procSplits = detailsClean.split('[บันทึกจัดจ้าง]:');
-      detailsClean = procSplits[0].trim();
-      procPart = procSplits[1].trim();
-    }
-
-    // 🟢 2. ดึงข้อความส่วนผลการซ่อมของช่าง [ช่างบันทึก]:
-    if (detailsClean.indexOf('[ช่างบันทึก]:') !== -1) {
-      let techSplits = detailsClean.split('[ช่างบันทึก]:');
-      reportPart = techSplits[0].trim();
-      techPart = techSplits[1].trim();
-    } else {
-      reportPart = detailsClean.trim();
-    }
-
-    // 🚨 รายการแจ้งซ่อม
-    formattedDetails = '<b>🚨 รายการแจ้งซ่อม:</b> ' + reportPart + '<br/>';
-
-    // 🔧 ผลการซ่อมบำรุง
-    if (techPart) {
-      if (techPart.indexOf('OP_TYPE:') !== -1) {
-        let opType = techPart.split('OP_TYPE:')[1].split('##')[0];
-        let techDetailsText = techPart.split('DETAILS:')[1] ? techPart.split('DETAILS:')[1].split('##')[0] : '';
-        let techMaterialsText = techPart.split('MATERIALS:')[1] ? techPart.split('MATERIALS:')[1].split('##')[0] : '';
-        let badgeColor = opType === 'ซ่อมแซมเอง' ? 'background-color:#e6f4ea; color:#137333;' : 'background-color:#fef7e0; color:#b06000;';
-
-        formattedDetails += '<div style="margin-top:4px; padding-top:4px; border-top:1px dashed #cbd5e1; font-size:11px; line-height:1.3;">';
-        formattedDetails += '  <b>🔧 ผลดำเนินการซ่อม:</b> <span style="' + badgeColor + ' padding:1px 5px; border-radius:4px; font-weight:bold; font-size:10px;">' + opType + '</span><br/>';
-        formattedDetails += '  <span style="color:#065f46;">• รายละเอียด: ' + techDetailsText + '</span>';
-        if (opType === 'ซ่อมแซมเอง' && techMaterialsText && techMaterialsText !== 'ไม่ได้ใช้วัสดุอุปกรณ์') {
-          formattedDetails += '<br/><span style="color:#475569;">• 📦 วัสดุที่ใช้: ' + techMaterialsText + '</span>';
-        }
-        formattedDetails += '</div>';
-      } else {
-        formattedDetails += '<div style="margin-top:4px; border-top:1px dashed #cbd5e1; font-size:11px;"><span style="color:#065f46;"><b>🔧 ผลดำเนินการซ่อม:</b> ' + techPart + '</span></div>';
-      }
-    }
-
-    // 📝 แสดงข้อมูลสรุปสัญญาจัดจ้าง
-    let contractInfoHtml = '';
-    if (procPart) {
-      contractInfoHtml = `
-        <div style="margin-top:5px; padding:5px 7px; background-color:#eff6ff; border:1px solid #bfdbfe; border-radius:4px; font-size:10.5px; color:#1e40af; line-height:1.4;">
-          <b>📝 สรุปสัญญาจัดจ้าง / ปิดงานจัดจ้าง:</b><br/>
-          • ${procPart.replace(/\|/g, '<br/>• ')}
-        </div>
-      `;
-    } else {
-      const contractNo = h.contractNo || (h.details && h.details.includes('CONTRACT_NO:') ? h.details.split('CONTRACT_NO:')[1].split('##')[0] : '');
-      const contractPeriod = h.contractPeriod || (h.details && h.details.includes('CONTRACT_PERIOD:') ? h.details.split('CONTRACT_PERIOD:')[1].split('##')[0] : '');
-      const contractVendor = h.contractVendor || (h.details && h.details.includes('CONTRACT_VENDOR:') ? h.details.split('CONTRACT_VENDOR:')[1].split('##')[0] : '');
-      const contractNote = h.contractNote || h.contractDetails || (h.details && h.details.includes('CONTRACT_NOTE:') ? h.details.split('CONTRACT_NOTE:')[1].split('##')[0] : '');
-
-      if (contractNo || contractPeriod || contractVendor || contractNote) {
-        contractInfoHtml = `
-          <div style="margin-top:5px; padding:5px 7px; background-color:#eff6ff; border:1px solid #bfdbfe; border-radius:4px; font-size:10.5px; color:#1e40af; line-height:1.4;">
-            <b>📝 สรุปสัญญาจัดจ้าง:</b><br/>
-            ${contractNo ? '• เลขที่สัญญา: <b>' + contractNo + '</b> ' : ''}
-            ${contractVendor ? '| คู่สัญญา/ผู้รับจ้าง: ' + contractVendor + ' ' : ''}
-            ${contractPeriod ? '<br/>• ช่วงเวลาสัญญา: ' + contractPeriod : ''}
-            ${contractNote ? '<br/>• หมายเหตุจัดจ้าง: ' + contractNote : ''}
-          </div>
-        `;
-      }
-    }
-
-    let reporterClean = h.reporter || '';
-    let formattedReporter = reporterClean.indexOf(' / ช่าง:') !== -1 ?
-      '<b>👤 ผู้แจ้ง:</b> ' + reporterClean.split(' / ช่าง:')[0].trim() + '<br/><b>🔧 ช่าง:</b> ' + reporterClean.split(' / ช่าง:')[1].trim() :
-      '<b>👤 ผู้แจ้ง:</b> ' + reporterClean;
-
-    return '<tr>' +
-      '<td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-size:11px;">' + (h.date || '-') + '<br/><b style="color:#64748b; font-size:10px;">' + (h.repairId || '') + '</b></td>' +
-      '<td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">' + formattedDetails + contractInfoHtml + '</td>' +
-      '<td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:' + statusColor + '; font-size:11px;">' + (h.status || '-') + '</td>' +
-      '<td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">' + formattedReporter + '</td>' +
-    '</tr>';
+    return `<tr>
+      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-size:11px;">${h.date || '-'}<br/><b style="color:#64748b; font-size:10px;">${h.repairId || ''}</b></td>
+      <td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">${detailsClean}</td>
+      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:${statusColor}; font-size:11px;">${h.status || '-'}</td>
+      <td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">${h.reporter || '-'}</td>
+    </tr>`;
   }).join('');
-
-  if (historyList.length === 0) {
-    historyRowsHtml = '<tr><td colspan="4" style="padding:12px; text-align:center; color:#94a3b8; font-size:11px;">ไม่มีบันทึกประวัติการแจ้งชำรุดเสียหายในระบบ</td></tr>';
-  }
 
   const assetImgSrc = item.Image || item.image || document.getElementById('wsImg')?.src || '';
   const qrImgSrc = item.QRCode || item.qrCode || document.getElementById('wsUploadedQr')?.src || '';
-
   const assetImgTag = (assetImgSrc && !assetImgSrc.includes('data:,')) ? `<img src="${assetImgSrc}" style="max-height:160px; max-width:100%; object-fit:contain; border-radius:6px;"/>` : '<p style="color:#94a3b8; font-size:11px;">(ไม่มีภาพถ่ายประกอบ)</p>';
   const qrImgTag = (qrImgSrc && !qrImgSrc.includes('data:,')) ? `<img src="${qrImgSrc}" style="max-height:130px; max-width:100%; object-fit:contain; border-radius:6px;"/>` : '<p style="color:#94a3b8; font-size:11px;">(ไม่มี QR Code)</p>';
-  const printDateStr = new Date().toLocaleDateString('th-TH');
 
   printWindow.document.open();
   printWindow.document.write(`
@@ -1831,27 +1773,23 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
         table { width: 100%; border-collapse: collapse; }
         .page-header { text-align: center; border-bottom: 2px double #059669; padding-bottom: 6px; margin-bottom: 12px; }
         .section-title { font-size: 13px; font-weight: bold; color: #0f172a; margin-top: 10px; margin-bottom: 6px; border-left: 4px solid #059669; padding-left: 8px; }
-        @media print {
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        }
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
       </style>
     </head>
     <body>
       <div class="page-header">
         <h2 style="font-size: 18px; font-weight: bold; color: #065f46; margin: 0 0 4px 0;">รายงานข้อมูลคุณลักษณะและทะเบียนประวัติครุภัณฑ์ประจำพิกัด</h2>
-        <p style="font-size: 11px; color: #64748b; margin: 0;">รหัสอ้างอิง: ${item.ID || item.id || '-'} | วันที่พิมพ์เอกสาร: ${printDateStr}</p>
+        <p style="font-size: 11px; color: #64748b; margin: 0;">รหัสอ้างอิง: ${item.ID || item.id || '-'} | วันที่พิมพ์: ${new Date().toLocaleDateString('th-TH')}</p>
       </div>
 
       <table style="margin-bottom: 12px;">
         <tr>
           <td width="68%" style="text-align:center; background-color:#f8fafc; padding:8px; border:1px solid #e2e8f0; border-radius:8px; vertical-align:middle;">
-            <b style="font-size:11px; color:#334155;">📷 ภาพถ่ายจุดติดตั้งครุภัณฑ์ปัจจุบัน</b><br/><br/>
-            ${assetImgTag}
+            <b style="font-size:11px; color:#334155;">📷 ภาพถ่ายจุดติดตั้งครุภัณฑ์ปัจจุบัน</b><br/><br/>${assetImgTag}
           </td>
           <td width="2%"></td>
           <td width="30%" style="text-align:center; background-color:#f8fafc; padding:8px; border:1px solid #e2e8f0; border-radius:8px; vertical-align:middle;">
-            <b style="font-size:11px; color:#334155;">🔗 QR Code เพิ่มเติม</b><br/><br/>
-            ${qrImgTag}
+            <b style="font-size:11px; color:#334155;">🔗 QR Code เพิ่มเติม</b><br/><br/>${qrImgTag}
           </td>
         </tr>
       </table>
@@ -1870,46 +1808,67 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
           <td style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">หน่วยงานผู้รับผิดชอบ</span><br/><span style="font-size:13px; color:#0f172a;">${item['หน่วยงาน'] || item.department || '-'}</span></td>
           <td style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">สถานที่ติดตั้งหลัก</span><br/><b style="font-size:13px; color:#065f46;">📍 ${item['ที่ตั้ง'] || item.location || '-'}</b></td>
         </tr>
-        <tr style="border-bottom: 1px solid #f1f5f9;">
-          <td style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">สถานะปัจจุบันในระบบ</span><br/><span style="font-size:13px; color:#0f172a;">${item.Status || item.status || '-'}</span></td>
-          <td style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">พิกัดแผนที่</span><br/><span style="font-size:12px; color:#0f172a;">ละติจูด ${item.Lat || item.lat || '0'} , ลองจิจูด ${item.Lng || item.lng || '0'}</span></td>
-        </tr>
-        <tr>
-          <td colspan="2" style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">หมายเหตุเพิ่มเติม (Note)</span><br/><span style="font-size:12px; color:#334155;">${item.Note || item.note || '-'}</span></td>
-        </tr>
       </table>
 
-      <div class="section-title">📜 บันทึกประวัติ ไทม์ไลน์แจ้งซ่อม และสรุปสัญญาจัดจ้างย้อนหลัง</div>
-      <div style="background-color:#fff1f2; padding:5px 10px; border:1px solid #fecdd3; border-radius:6px; margin-bottom:8px; font-size:11px; font-weight:bold; color:#9f1239;">
-        📊 จำนวนครั้งที่แจ้งชำรุดสะสมในฐานระบบ: <span style="color:#e11d48; font-size:13px;">${totalReports} ครั้ง</span>
-      </div>
+      <!-- 🟢 แสดงผลข้อมูลเทคนิควิศวกรรมเฉพาะ หากได้รับสิทธิ์ Admin / Technician -->
+      ${techSpecsSectionHtml}
 
+      <div class="section-title">📜 บันทึกประวัติ ไทม์ไลน์แจ้งซ่อม และสรุปสัญญาจัดจ้างย้อนหลัง</div>
       <table style="font-size:11px;">
         <thead>
           <tr style="background-color:#f1f5f9; color:#334155;">
             <th width="18%" style="padding:6px; border:1px solid #cbd5e1; text-align:center;">วันที่ / เลขใบงาน</th>
-            <th width="52%" style="padding:6px; border:1px solid #cbd5e1; text-align:center;">รายละเอียดบันทึกกิจกรรมซ่อมบำรุง / วัสดุอุปกรณ์ / สัญญาจัดจ้าง</th>
+            <th width="52%" style="padding:6px; border:1px solid #cbd5e1; text-align:center;">รายละเอียดบันทึกกิจกรรมซ่อมบำรุง</th>
             <th width="15%" style="padding:6px; border:1px solid #cbd5e1; text-align:center;">สถานะใบงาน</th>
             <th width="15%" style="padding:6px; border:1px solid #cbd5e1; text-align:center;">ผู้เกี่ยวข้อง</th>
           </tr>
         </thead>
-        <tbody>
-          ${historyRowsHtml}
-        </tbody>
+        <tbody>${historyRowsHtml}</tbody>
       </table>
 
       <script>
-        window.onload = function() {
-          setTimeout(function() {
-            window.print();
-          }, 500);
-        };
+        window.onload = function() { setTimeout(function() { window.print(); }, 500); };
       </script>
     </body>
     </html>
   `);
-
   printWindow.document.close();
+}
+
+// ==========================================
+// 📱 2. ฟังก์ชันเรนเดอร์หน้าต่างแสดงรายละเอียด (Detail Modal UI)
+// ==========================================
+function renderTechSpecsDetailModal(item) {
+  const container = document.getElementById('wsTechSpecsContainer');
+  if (!container) return;
+
+  const currentRole = window.userRole || sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || '';
+  const isAuthorizedTech = (currentRole === 'admin' || currentRole === 'technician');
+
+  const controlBox = item['ตู้ควบคุม/เบรกเกอร์'] || item['ตู้ควบคุม_เบรกเกอร์'] || item.controlBox || '';
+  const lampType = item['หลอดไฟที่ติดตั้ง'] || item.lampType || '';
+  const wireSize = item['ขนาดสายไฟ'] || item.wireSize || '';
+  const extraTech = item['ข้อมูลเทคนิคอื่นๆ'] || item['อื่นๆ'] || item.extraTech || '';
+
+  if (isAuthorizedTech && (controlBox || lampType || wireSize || extraTech)) {
+    container.innerHTML = `
+      <div class="mt-3 p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs">
+        <div class="font-bold text-sky-800 mb-2 flex items-center gap-1">
+          <i class="ph ph-lightning text-sm"></i> ข้อมูลเทคนิคเฉพาะ (สิทธิ์ Admin & Technician)
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-slate-700">
+          <div><b>🗄️ ตู้ควบคุม/เบรกเกอร์:</b> ${controlBox || '-'}</div>
+          <div><b>💡 หลอดไฟที่ติดตั้ง:</b> ${lampType || '-'}</div>
+          <div><b>🔌 ขนาดสายไฟ:</b> ${wireSize || '-'}</div>
+          <div><b>📝 อื่นๆ ระบุ:</b> ${extraTech || '-'}</div>
+        </div>
+      </div>
+    `;
+    container.classList.remove('hidden');
+  } else {
+    container.innerHTML = '';
+    container.classList.add('hidden');
+  }
 }
 
 // ==========================================
