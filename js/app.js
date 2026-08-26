@@ -165,16 +165,18 @@ function toggleTechEditForm(id) {
   }
 }
 
-// 🛠️ 5. ส่งข้อมูลบันทึกลง Google Sheet ผ่าน API
+// 🛠️ 5. ส่งข้อมูลบันทึกลง Google Sheet พร้อมอัปเดตหน้าต่างทันที
 async function submitTechSpecs(event, id) {
   event.preventDefault();
   const payload = {
     id: id,
-    controlBox: document.getElementById(`inputControlBox_${id}`)?.value || '',
-    lampType: document.getElementById(`inputLampType_${id}`)?.value || '',
-    wireSize: document.getElementById(`inputWireSize_${id}`)?.value || '',
-    extraTech: document.getElementById(`inputExtraTech_${id}`)?.value || ''
+    controlBox: document.getElementById(`inputControlBox_${id}`)?.value.trim() || '',
+    lampType: document.getElementById(`inputLampType_${id}`)?.value.trim() || '',
+    wireSize: document.getElementById(`inputWireSize_${id}`)?.value.trim() || '',
+    extraTech: document.getElementById(`inputExtraTech_${id}`)?.value.trim() || ''
   };
+
+  showLoadingModal("⚡ กำลังบันทึกข้อมูลเทคนิค...", "กรุณารอสักครู่");
 
   try {
     const res = await fetch(API_URL, {
@@ -182,14 +184,45 @@ async function submitTechSpecs(event, id) {
       body: JSON.stringify({ action: 'saveTechSpecs', data: payload })
     }).then(r => r.json());
 
+    hideLoadingModal();
+
     if (res && res.success) {
-      if (typeof showQuietAlert === 'function') showQuietAlert("✅ บันทึกข้อมูลทางเทคนิคสำเร็จ");
-      // อัปเดตข้อมูล Memory ล่าสุด
-      if (typeof fetchAllEquipmentData === 'function') fetchAllEquipmentData();
+      showQuietAlert("✅ บันทึกข้อมูลทางเทคนิคสำเร็จ");
+
+      // 🟢 1. อัปเดตข้อมูลในหน่วยความจำ (currentActiveItemRaw) ทันที
+      if (currentActiveItemRaw && currentActiveItemRaw.ID === id) {
+        currentActiveItemRaw['ตู้ควบคุม/เบรกเกอร์'] = payload.controlBox;
+        currentActiveItemRaw['ตู้ควบคุม_เบรกเกอร์'] = payload.controlBox;
+        currentActiveItemRaw.controlBox = payload.controlBox;
+
+        currentActiveItemRaw['หลอดไฟที่ติดตั้ง'] = payload.lampType;
+        currentActiveItemRaw.lampType = payload.lampType;
+
+        currentActiveItemRaw['ขนาดสายไฟ'] = payload.wireSize;
+        currentActiveItemRaw.wireSize = payload.wireSize;
+
+        currentActiveItemRaw['ข้อมูลเทคนิคอื่นๆ'] = payload.extraTech;
+        currentActiveItemRaw['อื่นๆ'] = payload.extraTech;
+        currentActiveItemRaw.extraTech = payload.extraTech;
+      }
+
+      // 🟢 2. อัปเดตข้อมูลในรายการหลัก (allData)
+      const targetInAll = allData.find(x => x.ID === id);
+      if (targetInAll) {
+        Object.assign(targetInAll, currentActiveItemRaw);
+      }
+
+      // 🟢 3. เรนเดอร์การ์ดแสดงผลบน Modal ใหม่ทันที
+      renderTechSpecsSection(currentActiveItemRaw);
+
+      // 🟢 4. โหลดพิกัด/ข้อมูลซิงค์เบื้องหลัง
+      if (typeof loadMarkers === 'function') loadMarkers();
+
     } else {
-      alert("❌ บันทึกล้มเหลว: " + (res.message || 'เกิดข้อผิดพลาด'));
+      alert("❌ บันทึกล้มเหลว: " + (res ? res.message : 'เกิดข้อผิดพลาด'));
     }
   } catch(e) {
+    hideLoadingModal();
     alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: " + e.toString());
   }
 }
@@ -1917,7 +1950,7 @@ function triggerExportPDF() {
 }
 
 // ==========================================
-// 📄 1. ปรับปรุงฟังก์ชันพิมพ์ PDF รายงาน A4 (เพิ่มการเช็คสิทธิ์แสดงข้อมูลเทคนิค)
+// 📄 ฟังก์ชันพิมพ์ PDF รายงาน A4 (ดึงข้อมูลเทคนิคครบทุกชื่อคอลัมน์)
 // ==========================================
 async function generateA4ReportPDFClient(equipId, printWindow) {
   const allAssets = (typeof allData !== 'undefined' && allData.length > 0) ? allData : (window.allAssetsData || []);
@@ -1933,18 +1966,20 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
     return;
   }
 
-  // 🔒 ตรวจสอบสิทธิ์ผู้ใช้งาน (Admin หรือ Technician เท่านั้น)
+  // 🔒 ตรวจสอบสิทธิ์ผู้ใช้งาน (Admin หรือ Technician)
   const currentRole = window.userRole || sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || '';
-  const isAuthorizedTech = (currentRole === 'admin' || currentRole === 'technician');
+  const isAuthorizedTech = (typeof isAdmin !== 'undefined' && isAdmin) ||
+                           (typeof isTechnician !== 'undefined' && isTechnician) ||
+                           (currentRole === 'admin' || currentRole === 'technician');
 
-  // ดึงข้อมูลเทคนิคเพิ่มเติม (หากมีข้อมูลและได้รับสิทธิ์)
-  const controlBox = item['ตู้ควบคุม/เบรกเกอร์'] || item['ตู้ควบคุม_เบรกเกอร์'] || item.controlBox || '';
-  const lampType = item['หลอดไฟที่ติดตั้ง'] || item.lampType || '';
+  // 🟢 ดึงข้อมูลเทคนิคเพิ่มเติม (รองรับการแมปชื่อคอลัมน์ทุกรูปแบบ)
+  const controlBox = item['ตู้ควบคุม/เบรกเกอร์'] || item['ตู้ควบคุม_เบรกเกอร์'] || item.controlBox || item['ตู้ควบคุม'] || '';
+  const lampType = item['หลอดไฟที่ติดตั้ง'] || item.lampType || item['หลอดไฟ'] || '';
   const wireSize = item['ขนาดสายไฟ'] || item.wireSize || '';
   const extraTech = item['ข้อมูลเทคนิคอื่นๆ'] || item['อื่นๆ'] || item.extraTech || '';
 
   let techSpecsSectionHtml = '';
-  if (isAuthorizedTech && (controlBox || lampType || wireSize || extraTech)) {
+  if (isAuthorizedTech) {
     techSpecsSectionHtml = `
       <div class="section-title" style="border-left-color: #0284c7; color: #0369a1;">⚡ ข้อมูลคุณลักษณะทางเทคนิคเฉพาะ (สิทธิ์ Admin & Technician)</div>
       <table style="margin-bottom: 12px; font-size: 11.5px; background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px;">
@@ -1960,7 +1995,6 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
     `;
   }
 
-  // ... (การดึงประวัติแจ้งซ่อม historyList ทำงานตามเดิม) ...
   let historyList = [];
   try {
     const res = await apiGet('getRepairHistory');
@@ -1972,13 +2006,11 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
     historyList = memHistory.filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === equipId.toString().trim().toUpperCase());
   }
 
-  const totalReports = historyList.length;
   let historyRowsHtml = historyList.map(h => {
     let statusColor = h.status === 'ซ่อมเสร็จสิ้น' ? '#059669' : (h.status === 'รอจัดจ้าง' ? '#d97706' : '#dc2626');
-    let detailsClean = h.details || '';
     return `<tr>
       <td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-size:11px;">${h.date || '-'}<br/><b style="color:#64748b; font-size:10px;">${h.repairId || ''}</b></td>
-      <td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">${detailsClean}</td>
+      <td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">${h.details || ''}</td>
       <td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:${statusColor}; font-size:11px;">${h.status || '-'}</td>
       <td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">${h.reporter || '-'}</td>
     </tr>`;
@@ -2039,7 +2071,7 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
         </tr>
       </table>
 
-      <!-- 🟢 แสดงผลข้อมูลเทคนิควิศวกรรมเฉพาะ หากได้รับสิทธิ์ Admin / Technician -->
+      <!-- 🟢 ตารางแสดงข้อมูลคุณลักษณะทางเทคนิคเฉพาะในเอกสาร PDF -->
       ${techSpecsSectionHtml}
 
       <div class="section-title">📜 บันทึกประวัติ ไทม์ไลน์แจ้งซ่อม และสรุปสัญญาจัดจ้างย้อนหลัง</div>
