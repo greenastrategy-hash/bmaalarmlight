@@ -6,13 +6,13 @@
   <title>ระบบบริหารจัดการไฟฟ้าส่องสว่าง</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💡</text></svg>">
 
-  <!-- Tailwind & Leaflet & Icons -->
+  <!-- Tailwind & Leaflet & MarkerCluster & Phosphor Icons -->
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased flex flex-col min-h-screen">
 
@@ -21,10 +21,10 @@
     <span id="quietAlertText">ระบบพิกัดพร้อมทำงาน</span>
   </div>
 
-  <nav class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-3.5 shadow-md flex justify-between items-center">
+  <nav class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-3.5 shadow-md flex justify-between items-center sticky top-0 z-[1000]">
     <div class="flex items-center space-x-2">
       <span class="text-xl">💡</span>
-      <h1 class="text-md font-bold tracking-wide">ระบบบริหารจัดการไฟฟ้าส่องสว่าง</h1>
+      <h1 class="text-sm sm:text-base font-bold tracking-wide">ระบบบริหารจัดการไฟฟ้าส่องสว่าง</h1>
     </div>
     <div class="flex items-center gap-2">
       <span id="authSuccessBadge" class="text-xs bg-emerald-50/20 text-emerald-100 px-2.5 py-1 rounded-md border border-emerald-500/30 hidden font-medium">● สิทธิ์เจ้าหน้าที่</span>
@@ -37,13 +37,14 @@
     </div>
   </nav>
 
-  <!-- Summary Cards -->
-  <div class="p-3 grid grid-cols-2 sm:grid-cols-5 gap-3">
-    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-cards"></i></div><div><p class="text-[10px] text-slate-400 font-medium">ครุภัณฑ์ทั้งหมด</p><p id="count_all" class="text-sm font-extrabold">0</p></div></div>
-    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-teal-50 text-teal-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-check-circle"></i></div><div><p class="text-[10px] text-slate-400 font-medium">สถานะปกติ</p><p id="count_normal" class="text-sm font-extrabold text-teal-600">0</p></div></div>
-    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-warning-circle"></i></div><div><p class="text-[10px] text-slate-400 font-medium">สถานะชำรุด</p><p id="count_damaged" class="text-sm font-extrabold text-rose-600">0</p></div></div>
-    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-hourglass-high"></i></div><div><p class="text-[10px] text-slate-400 font-medium">สถานะรอจำหน่าย</p><p id="count_pending" class="text-sm font-extrabold text-amber-600">0</p></div></div>
-    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-slate-100 text-slate-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-archive"></i></div><div><p class="text-[10px] text-slate-400 font-medium">สถานะจำหน่ายแล้ว</p><p id="count_disposed" class="text-sm font-extrabold text-slate-600">0</p></div></div>
+  <!-- Summary Cards (เพิ่มการ์ดรอจัดจ้าง) -->
+  <div class="p-3 grid grid-cols-2 sm:grid-cols-6 gap-2 sm:gap-3">
+    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-cards"></i></div><div><p class="text-[10px] text-slate-400 font-medium">ทั้งหมด</p><p id="count_all" class="text-sm font-extrabold">0</p></div></div>
+    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-teal-50 text-teal-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-check-circle"></i></div><div><p class="text-[10px] text-slate-400 font-medium">ปกติ</p><p id="count_normal" class="text-sm font-extrabold text-teal-600">0</p></div></div>
+    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-warning-circle"></i></div><div><p class="text-[10px] text-slate-400 font-medium">ชำรุด</p><p id="count_damaged" class="text-sm font-extrabold text-rose-600">0</p></div></div>
+    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-file-text"></i></div><div><p class="text-[10px] text-slate-400 font-medium">รอจัดจ้าง</p><p id="count_estimate" class="text-sm font-extrabold text-amber-600">0</p></div></div>
+    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-orange-50 text-orange-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-hourglass-high"></i></div><div><p class="text-[10px] text-slate-400 font-medium">รอจำหน่าย</p><p id="count_pending" class="text-sm font-extrabold text-orange-600">0</p></div></div>
+    <div class="bg-white p-3 rounded-xl border flex items-center gap-3 shadow-2xs"><div class="w-9 h-9 bg-slate-100 text-slate-600 rounded-lg flex items-center justify-center text-lg"><i class="ph-bold ph-archive"></i></div><div><p class="text-[10px] text-slate-400 font-medium">จำหน่ายแล้ว</p><p id="count_disposed" class="text-sm font-extrabold text-slate-600">0</p></div></div>
   </div>
 
   <!-- Main Map & Tables Container -->
@@ -55,8 +56,9 @@
           <select id="departmentFilter" onchange="onDepartmentFilterChange()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none"></select>
           <select id="locationFilter" onchange="applyFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none"></select>
           <select id="statusFilter" onchange="applyFilters()" class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-bold text-slate-700 outline-none">
-            <option value="all">🔍 ทุกสถานะ (ปกติ/ชำรุด)</option>
+            <option value="all">🔍 ทุกสถานะ</option>
             <option value="ชำรุด" selected>🔴 ชำรุด (Default)</option>
+            <option value="รอจัดจ้าง">🟡 รอจัดจ้าง (ส่งประมาณราคา)</option>
             <option value="ปกติ">🟢 ปกติ</option>
             <option value="รอจำหน่าย">⏳ รอจำหน่าย</option>
             <option value="จำหน่ายแล้ว">📦 จำหน่ายแล้ว</option>
@@ -73,10 +75,10 @@
     </div>
 
     <div id="tablesWrapper" class="hidden space-y-4 transition-all duration-300 min-w-0">
-      <!-- Damaged Assets Table -->
+      <!-- 1. ตารางงานชำรุดคงค้าง -->
       <div id="damagedAssetsContainer" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hidden animate-fade-in">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="text-xs font-bold text-rose-800">⚠️ รายการงานชำรุดคงค้างดำเนินการซ่อมแซมบำรุงรักษา</h3>
+          <h3 class="text-xs font-bold text-rose-800">⚠️ รายการงานชำรุดคงค้างซ่อมบำรุง</h3>
           <button onclick="exportDamagedCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-slate-200 flex items-center gap-1 cursor-pointer transition-colors">
             <i class="ph-bold ph-file-csv text-sm text-rose-700"></i> Export CSV
           </button>
@@ -96,12 +98,37 @@
         </div>
       </div>
 
-      <!-- Success Assets Table -->
+      <!-- 2. ตารางงานส่งประมาณราคา (รอจัดจ้าง) -->
+      <div id="estimateAssetsContainer" class="bg-white p-4 rounded-2xl border border-amber-200 shadow-sm hidden animate-fade-in bg-amber-50/20">
+        <div class="flex justify-between items-center mb-2">
+          <div>
+            <h3 class="text-xs font-bold text-amber-900">📄 รายการส่งประมาณราคา (อยู่ระหว่างรอจัดจ้าง)</h3>
+            <p class="text-[10px] text-slate-500">รายการที่ช่างส่งประมาณราคาแล้ว รอการทำสัญญาจัดจ้างเพื่อปิดงาน</p>
+          </div>
+          <span id="estimateCountBadge" class="text-xs bg-amber-100 text-amber-800 font-bold px-2.5 py-1 rounded-full">0 รายการ</span>
+        </div>
+        <div class="overflow-x-auto border rounded-xl bg-white">
+          <table class="min-w-full text-xs text-left">
+            <thead class="bg-slate-50 text-slate-500 border-b">
+              <tr>
+                <th class="p-2 text-center">ใบงาน</th>
+                <th class="p-2 text-center">ID ครุภัณฑ์</th>
+                <th class="p-2">รายละเอียดประมาณราคา</th>
+                <th class="p-2">สถานที่</th>
+                <th class="p-2 text-center">ดำเนินการ</th>
+              </tr>
+            </thead>
+            <tbody id="estimateAssetsTableBody" class="divide-y"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 3. ตารางงานที่ซ่อมบำรุงเสร็จสิ้นแล้ว -->
       <div id="successAssetsContainer" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hidden animate-fade-in">
         <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-2 mb-3">
           <div>
             <h3 class="text-xs font-bold text-emerald-800">📊 รายการที่ซ่อมบำรุงเสร็จสิ้นแล้ว</h3>
-            <p class="text-[10px] text-slate-400">ประวัติและไทม์ไลน์การปิดงานซ่อมบำรุงรักษาโดยช่างเทคนิคสำเร็จ</p>
+            <p class="text-[10px] text-slate-400">ประวัติและไทม์ไลน์การปิดงานซ่อมบำรุงรักษา</p>
           </div>
           <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
             <input type="text" id="successSearchInput" oninput="applySuccessFilters()" placeholder="🔍 ค้นหา ID / ช่าง / รายการซ่อม..." class="p-1.5 bg-slate-100 border rounded-lg text-[11px] font-medium text-slate-700 outline-none flex-1 lg:flex-initial lg:w-48 focus:bg-white focus:border-emerald-500 transition-colors">
@@ -120,7 +147,7 @@
                 <th class="p-2 text-center" width="14%">วันที่ / ใบงาน</th>
                 <th class="p-2 text-center" width="12%">ID ครุภัณฑ์</th>
                 <th class="p-2 text-center" width="11%">แจ้งซ่อมสะสม</th>
-                <th class="p-2" width="39%">รายการซ่อมบำรุง / สรุปผลการจัดการหน้างาน</th>
+                <th class="p-2" width="39%">รายการซ่อมบำรุง / สรุปผลการจัดการ</th>
                 <th class="p-2 text-center" width="12%">หลักฐาน</th>
                 <th class="p-2 text-center" width="12%">ตรวจสอบ</th>
               </tr>
@@ -137,7 +164,7 @@
         </div>
       </div>
 
-      <!-- Master Inventory Table -->
+      <!-- 4. ตารางรายละเอียดทรัพย์สินหลัก (Master) -->
       <div id="masterInventoryContainer" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 hidden animate-fade-in">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
           <div>
@@ -176,6 +203,73 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal ปิดงานสัญญาจัดจ้าง -->
+  <div id="procurementModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[10004] hidden p-4 animate-fade-in">
+    <div class="bg-white rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto">
+      <button onclick="closeProcurementModal()" class="absolute top-3 right-4 text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer">&times;</button>
+      <div class="flex items-center gap-2 border-b pb-3 mb-4">
+        <span class="text-xl">📄</span>
+        <h3 class="text-sm sm:text-base font-bold text-amber-800">บันทึกปิดงานจัดจ้างตามสัญญา</h3>
+      </div>
+      <form id="procurementForm" onsubmit="handleProcurementSubmit(event)" class="space-y-3.5 text-left text-xs">
+        <input type="hidden" id="proc_repairId">
+        <input type="hidden" id="proc_assetId">
+
+        <div class="bg-amber-50/50 p-3 rounded-xl border border-amber-200 space-y-1">
+          <p id="proc_badge_info" class="font-bold text-amber-900"></p>
+        </div>
+
+        <div>
+          <label class="block text-slate-600 font-bold mb-1 text-[11px]">เลขที่สัญญา / ใบสั่งจ้าง</label>
+          <input type="text" id="proc_contractNo" required placeholder="เช่น สัญญาเลขที่ 45/2569" class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-emerald-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-slate-600 font-bold mb-1 text-[11px]">วันที่เริ่มสัญญา</label>
+            <input type="date" id="proc_startDate" required class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-emerald-500">
+          </div>
+          <div>
+            <label class="block text-slate-600 font-bold mb-1 text-[11px]">วันที่สิ้นสุดสัญญา</label>
+            <input type="date" id="proc_endDate" required class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-emerald-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-600 font-bold mb-1 text-[11px]">รายละเอียดผลงาน / บริษัทผู้รับจ้าง</label>
+          <textarea id="proc_details" required rows="2" placeholder="ระบุชื่อบริษัทผู้รับจ้าง และรายละเอียดงานที่ดำเนินการแล้วเสร็จ..." class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-emerald-500"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-slate-600 font-bold mb-1 text-[11px]">ชื่อเจ้าหน้าที่ผู้ตรวจรับ / ผู้บันทึก</label>
+          <input type="text" id="proc_officerName" required placeholder="ระบุชื่อ-สกุล" class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-emerald-500">
+        </div>
+
+        <div>
+          <label class="block text-slate-600 font-bold mb-1 text-[11px]">📷 แนบภาพงานแล้วเสร็จ / เอกสารสัญญา</label>
+          <div class="flex items-center gap-2">
+            <label class="bg-amber-100 hover:bg-amber-200 text-amber-900 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1 border border-amber-300 cursor-pointer shadow-2xs">
+              <i class="ph-bold ph-camera text-sm"></i> ถ่ายภาพ
+              <input type="file" id="procCapture" accept="image/*" capture="environment" onchange="handleNativeImage(this, 'preview_proc', 'procFile')" class="hidden">
+            </label>
+            <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1 border border-slate-300 cursor-pointer shadow-2xs">
+              <i class="ph-bold ph-folder-open text-sm"></i> เลือกไฟล์
+              <input type="file" id="procFile" accept="image/*" onchange="handleNativeImage(this, 'preview_proc', 'procCapture')" class="hidden">
+            </label>
+          </div>
+          <div id="preview_proc_box" class="hidden mt-2 relative inline-block border rounded-lg p-1 bg-white">
+            <img id="preview_proc" class="h-20 w-auto rounded object-cover">
+            <button type="button" onclick="removeImagePreview('preview_proc_box', 'preview_proc', ['procCapture', 'procFile'])" class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold cursor-pointer">&times;</button>
+          </div>
+        </div>
+
+        <button type="submit" id="procSubmitBtn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-2.5 rounded-xl text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-1">
+          <i class="ph-bold ph-check-circle text-base"></i> ยืนยันปิดงานจัดจ้างและปรับสถานะเป็นปกติ
+        </button>
+      </form>
     </div>
   </div>
 
@@ -326,8 +420,8 @@
                   <div>
                     <label class="block text-slate-600 font-bold mb-1 text-[11px]">ประเภทการดำเนินการ</label>
                     <select id="techActionType" onchange="toggleTechActionFields()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-emerald-500 text-xs">
-                      <option value="ซ่อมแซมเอง">🔧 ซ่อมแซมเอง</option>
-                      <option value="ส่งประมาณราคา">📄 ส่งประมาณราคา</option>
+                      <option value="ซ่อมแซมเอง">🔧 ซ่อมแซมเอง (ปิดงานเป็นปกติ)</option>
+                      <option value="ส่งประมาณราคา">📄 ส่งประมาณราคา (เปลี่ยนเป็นรอจัดจ้าง)</option>
                     </select>
                   </div>
                   <div>
@@ -337,7 +431,7 @@
                 </div>
                 
                 <div>
-                  <label class="block text-slate-600 font-bold mb-1 text-[11px]">รายละเอียดผลดำเนินการซ่อมบำรุง</label>
+                  <label class="block text-slate-600 font-bold mb-1 text-[11px]">รายละเอียดผลดำเนินการซ่อมบำรุง / รายละเอียดประมาณราคา</label>
                   <input type="text" id="techDetails" required placeholder="ระบุอาการและผลการจัดการหน้างานอย่างละเอียด" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500 text-xs">
                 </div>
                 
@@ -349,22 +443,18 @@
                   <div id="dynamicMaterialsList" class="space-y-1.5"></div>
                 </div>
                 
-                <!-- 🌟 กล่องถ่ายภาพ / แนบไฟล์งานซ่อมเสร็จแบบ 100% Mobile Native -->
                 <div>
-                  <label class="block text-slate-600 font-bold mb-1 text-[11px]">📷 ภาพถ่ายหลักฐานงานซ่อมเสร็จสิ้น</label>
+                  <label class="block text-slate-600 font-bold mb-1 text-[11px]">📷 ภาพถ่ายหลักฐานงานซ่อมเสร็จสิ้น / เอกสารประมาณราคา</label>
                   <div class="flex items-center gap-2">
-                    <!-- ปุ่มเปิดกล้องตรงๆ ของระบบมือถือ -->
                     <label class="bg-amber-100 hover:bg-amber-200 text-amber-900 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1 border border-amber-300 cursor-pointer shadow-2xs">
                       <i class="ph-bold ph-camera text-sm"></i> ถ่ายภาพ
                       <input type="file" id="imageAfterCapture" accept="image/*" capture="environment" onchange="handleNativeImage(this, 'preview_tech_after', 'imageAfterFile')" class="hidden">
                     </label>
-                    <!-- ปุ่มเลือกจากแกลเลอรี/เครื่อง -->
                     <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1 border border-slate-300 cursor-pointer shadow-2xs">
-                      <i class="ph-bold ph-folder-open text-sm"></i> เลือกไฟล์รูป
+                      <i class="ph-bold ph-folder-open text-sm"></i> เลือกไฟล์
                       <input type="file" id="imageAfterFile" accept="image/*" onchange="handleNativeImage(this, 'preview_tech_after', 'imageAfterCapture')" class="hidden">
                     </label>
                   </div>
-                  <!-- กล่องพรีวิวภาพพร้อมปุ่มลบ -->
                   <div id="preview_tech_after_box" class="hidden mt-2 relative inline-block border rounded-lg p-1 bg-white">
                     <img id="preview_tech_after" class="h-20 w-auto rounded object-cover">
                     <button type="button" onclick="removeImagePreview('preview_tech_after_box', 'preview_tech_after', ['imageAfterCapture', 'imageAfterFile'])" class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-md cursor-pointer">&times;</button>
@@ -372,7 +462,7 @@
                 </div>
                 
                 <button type="submit" id="techSubmitBtn" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-2.5 rounded-xl text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-1">
-                  <i class="ph-bold ph-check-square text-base"></i> บันทึกเสร็จสิ้นภารกิจและเปลี่ยนสถานะเป็นปกติ
+                  <i class="ph-bold ph-check-square text-base"></i> บันทึกผลการปฏิบัติงาน
                 </button>
               </form>
             </div>
@@ -422,6 +512,7 @@
             <select name="status" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-emerald-500">
               <option value="ปกติ">🟢 ปกติ</option>
               <option value="ชำรุด">🔴 ชำรุด</option>
+              <option value="รอจัดจ้าง">🟡 รอจัดจ้าง</option>
               <option value="รอจำหน่าย">⏳ รอจำหน่าย</option>
               <option value="จำหน่ายแล้ว">📦 จำหน่ายแล้ว</option>
             </select>
@@ -459,7 +550,6 @@
           </div>
         </div>
         
-        <!-- กล่องถ่ายรูป / แนบไฟล์นำเข้าข้อมูล -->
         <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-3">
           <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-images text-emerald-600 text-base"></i> 4. ภาพถ่ายครุภัณฑ์ & QR Code</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -545,6 +635,7 @@
             <select id="edit_status" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium focus:outline-emerald-500">
               <option value="ปกติ">🟢 ปกติ</option>
               <option value="ชำรุด">🔴 ชำรุด</option>
+              <option value="รอจัดจ้าง">🟡 รอจัดจ้าง</option>
               <option value="รอจำหน่าย">⏳ รอจำหน่าย</option>
               <option value="จำหน่ายแล้ว">📦 จำหน่ายแล้ว</option>
             </select>
@@ -577,7 +668,6 @@
           </div>
         </div>
 
-        <!-- กล่องถ่ายรูป / แนบไฟล์แก้ไขข้อมูล -->
         <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-3">
           <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-images text-slate-600 text-base"></i> 4. ถ่ายภาพ/อัปเดตไฟล์ใหม่</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -634,7 +724,7 @@
     <div class="bg-white rounded-2xl w-full max-w-xl p-4 sm:p-5 shadow-2xl relative mx-auto my-auto flex flex-col">
       <button onclick="closeImageModal()" class="absolute top-2 right-4 text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer">&times;</button>
       <h4 class="text-xs sm:text-sm font-bold text-slate-800 mb-3 flex items-center gap-1">
-        <i class="ph-bold ph-image text-emerald-700 text-base"></i> ภาพถ่ายหลักฐานหลังดำเนินการซ่อมเสร็จสิ้น
+        <i class="ph-bold ph-image text-emerald-700 text-base"></i> ภาพถ่ายหลักฐาน
       </h4>
       <div class="border rounded-xl overflow-hidden bg-slate-100 w-full max-h-[65vh] flex items-center justify-center shadow-inner">
         <img id="modalTargetImg" src="" alt="Evidence Snapshot" class="max-w-full max-h-[65vh] object-contain">
@@ -676,7 +766,7 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
-  <script src="js/config.js"></script>
-  <script src="js/app.js"></script>
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
