@@ -1719,54 +1719,79 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
   const totalReports = historyList.length;
 
   let historyRowsHtml = historyList.map(h => {
-    let statusColor = h.status === 'ซ่อมเสร็จสิ้น' ? '#059669' : '#d97706';
+    let statusColor = h.status === 'ซ่อมเสร็จสิ้น' ? '#059669' : (h.status === 'รอจัดจ้าง' ? '#d97706' : '#dc2626');
     let detailsClean = h.details || '';
     let formattedDetails = '';
 
-    // 1. ส่วนข้อมูลแจ้งซ่อม & ผลช่าง
-    if (detailsClean.indexOf('[ช่างบันทึก]:') !== -1) {
-      let splits = detailsClean.split('[ช่างบันทึก]:');
-      let reportPart = splits[0].trim();
-      let techPart = splits[1].trim();
-      formattedDetails = '<b>🚨 รายการแจ้งซ่อม:</b> ' + reportPart + '<br/>';
+    let reportPart = detailsClean;
+    let techPart = '';
+    let procPart = '';
 
+    // 🟢 1. ดึงข้อความส่วนจัดจ้าง [บันทึกจัดจ้าง]:
+    if (detailsClean.indexOf('[บันทึกจัดจ้าง]:') !== -1) {
+      let procSplits = detailsClean.split('[บันทึกจัดจ้าง]:');
+      detailsClean = procSplits[0].trim();
+      procPart = procSplits[1].trim();
+    }
+
+    // 🟢 2. ดึงข้อความส่วนผลการซ่อมของช่าง [ช่างบันทึก]:
+    if (detailsClean.indexOf('[ช่างบันทึก]:') !== -1) {
+      let techSplits = detailsClean.split('[ช่างบันทึก]:');
+      reportPart = techSplits[0].trim();
+      techPart = techSplits[1].trim();
+    } else {
+      reportPart = detailsClean.trim();
+    }
+
+    // 🚨 รายการแจ้งซ่อม
+    formattedDetails = '<b>🚨 รายการแจ้งซ่อม:</b> ' + reportPart + '<br/>';
+
+    // 🔧 ผลการซ่อมบำรุง
+    if (techPart) {
       if (techPart.indexOf('OP_TYPE:') !== -1) {
         let opType = techPart.split('OP_TYPE:')[1].split('##')[0];
-        let techDetailsText = techPart.split('DETAILS:')[1].split('##')[0];
-        let techMaterialsText = techPart.split('MATERIALS:')[1] || '';
+        let techDetailsText = techPart.split('DETAILS:')[1] ? techPart.split('DETAILS:')[1].split('##')[0] : '';
+        let techMaterialsText = techPart.split('MATERIALS:')[1] ? techPart.split('MATERIALS:')[1].split('##')[0] : '';
         let badgeColor = opType === 'ซ่อมแซมเอง' ? 'background-color:#e6f4ea; color:#137333;' : 'background-color:#fef7e0; color:#b06000;';
 
         formattedDetails += '<div style="margin-top:4px; padding-top:4px; border-top:1px dashed #cbd5e1; font-size:11px; line-height:1.3;">';
         formattedDetails += '  <b>🔧 ผลดำเนินการซ่อม:</b> <span style="' + badgeColor + ' padding:1px 5px; border-radius:4px; font-weight:bold; font-size:10px;">' + opType + '</span><br/>';
         formattedDetails += '  <span style="color:#065f46;">• รายละเอียด: ' + techDetailsText + '</span>';
-        if (opType === 'ซ่อมแซมเอง' && techMaterialsText) {
+        if (opType === 'ซ่อมแซมเอง' && techMaterialsText && techMaterialsText !== 'ไม่ได้ใช้วัสดุอุปกรณ์') {
           formattedDetails += '<br/><span style="color:#475569;">• 📦 วัสดุที่ใช้: ' + techMaterialsText + '</span>';
         }
         formattedDetails += '</div>';
       } else {
         formattedDetails += '<div style="margin-top:4px; border-top:1px dashed #cbd5e1; font-size:11px;"><span style="color:#065f46;"><b>🔧 ผลดำเนินการซ่อม:</b> ' + techPart + '</span></div>';
       }
-    } else {
-      formattedDetails = '<b>🚨 รายการแจ้งซ่อม:</b> ' + detailsClean;
     }
 
-    // 🟢 2. ดึงประวัติสัญญาจัดจ้าง (ขั้นตอนที่ 3)
+    // 📝 แสดงข้อมูลสรุปสัญญาจัดจ้าง
     let contractInfoHtml = '';
-    const contractNo = h.contractNo || (detailsClean.includes('CONTRACT_NO:') ? detailsClean.split('CONTRACT_NO:')[1].split('##')[0] : '');
-    const contractPeriod = h.contractPeriod || (detailsClean.includes('CONTRACT_PERIOD:') ? detailsClean.split('CONTRACT_PERIOD:')[1].split('##')[0] : '');
-    const contractVendor = h.contractVendor || (detailsClean.includes('CONTRACT_VENDOR:') ? detailsClean.split('CONTRACT_VENDOR:')[1].split('##')[0] : '');
-    const contractNote = h.contractNote || h.contractDetails || (detailsClean.includes('CONTRACT_NOTE:') ? detailsClean.split('CONTRACT_NOTE:')[1].split('##')[0] : '');
-
-    if (contractNo || contractPeriod || contractVendor || contractNote || detailsClean.includes('สัญญาจัดจ้าง')) {
+    if (procPart) {
       contractInfoHtml = `
-        <div style="margin-top:5px; padding:4px 6px; background-color:#eff6ff; border:1px solid #bfdbfe; border-radius:4px; font-size:10.5px; color:#1e40af; line-height:1.3;">
-          <b>📝 สรุปสัญญาจัดจ้าง:</b><br/>
-          ${contractNo ? '• เลขที่สัญญา: <b>' + contractNo + '</b> ' : ''}
-          ${contractVendor ? '| คู่สัญญา/ผู้รับจ้าง: ' + contractVendor + ' ' : ''}
-          ${contractPeriod ? '<br/>• ช่วงเวลาสัญญา: ' + contractPeriod : ''}
-          ${contractNote ? '<br/>• หมายเหตุจัดจ้าง: ' + contractNote : ''}
+        <div style="margin-top:5px; padding:5px 7px; background-color:#eff6ff; border:1px solid #bfdbfe; border-radius:4px; font-size:10.5px; color:#1e40af; line-height:1.4;">
+          <b>📝 สรุปสัญญาจัดจ้าง / ปิดงานจัดจ้าง:</b><br/>
+          • ${procPart.replace(/\|/g, '<br/>• ')}
         </div>
       `;
+    } else {
+      const contractNo = h.contractNo || (h.details && h.details.includes('CONTRACT_NO:') ? h.details.split('CONTRACT_NO:')[1].split('##')[0] : '');
+      const contractPeriod = h.contractPeriod || (h.details && h.details.includes('CONTRACT_PERIOD:') ? h.details.split('CONTRACT_PERIOD:')[1].split('##')[0] : '');
+      const contractVendor = h.contractVendor || (h.details && h.details.includes('CONTRACT_VENDOR:') ? h.details.split('CONTRACT_VENDOR:')[1].split('##')[0] : '');
+      const contractNote = h.contractNote || h.contractDetails || (h.details && h.details.includes('CONTRACT_NOTE:') ? h.details.split('CONTRACT_NOTE:')[1].split('##')[0] : '');
+
+      if (contractNo || contractPeriod || contractVendor || contractNote) {
+        contractInfoHtml = `
+          <div style="margin-top:5px; padding:5px 7px; background-color:#eff6ff; border:1px solid #bfdbfe; border-radius:4px; font-size:10.5px; color:#1e40af; line-height:1.4;">
+            <b>📝 สรุปสัญญาจัดจ้าง:</b><br/>
+            ${contractNo ? '• เลขที่สัญญา: <b>' + contractNo + '</b> ' : ''}
+            ${contractVendor ? '| คู่สัญญา/ผู้รับจ้าง: ' + contractVendor + ' ' : ''}
+            ${contractPeriod ? '<br/>• ช่วงเวลาสัญญา: ' + contractPeriod : ''}
+            ${contractNote ? '<br/>• หมายเหตุจัดจ้าง: ' + contractNote : ''}
+          </div>
+        `;
+      }
     }
 
     let reporterClean = h.reporter || '';
