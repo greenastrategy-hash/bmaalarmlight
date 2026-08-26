@@ -82,7 +82,7 @@ function renderTechSpecsSection(item) {
   const container = document.getElementById('wsTechSpecsContainer');
   if (!container) return;
 
-  // 🔒 ตรวจสอบสิทธิ์ผู้ใช้งาน (ครอบคลุมทั้งตัวแปร Global และ Storage)
+  // 🔒 ตรวจสอบสิทธิ์ผู้ใช้งาน (Admin & Technician)
   const role = window.userRole || sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || '';
   const isAuthorized = (typeof isAdmin !== 'undefined' && isAdmin) ||
                        (typeof isTechnician !== 'undefined' && isTechnician) ||
@@ -94,13 +94,12 @@ function renderTechSpecsSection(item) {
     return;
   }
 
-  // ดึงข้อมูลเทคนิคเฉพาะ (รองรับการแมปชื่อคอลัมน์หลากหลายรูปแบบ)
+  // ดึงข้อมูลเทคนิคเฉพาะ
   const cBox = item['ตู้ควบคุม_เบรกเกอร์'] || item['ตู้ควบคุม/เบรกเกอร์'] || item.controlBox || '';
   const lType = item['หลอดไฟที่ติดตั้ง'] || item.lampType || '';
   const wSize = item['ขนาดสายไฟ'] || item.wireSize || '';
   const eTech = item['ข้อมูลเทคนิคอื่นๆ'] || item['อื่นๆ'] || item.extraTech || '';
 
-  // Escaping Double Quotes สำหรับใส่ใน Value ของ Form Input
   const safeCBox = String(cBox).replace(/"/g, '&quot;');
   const safeLType = String(lType).replace(/"/g, '&quot;');
   const safeWSize = String(wSize).replace(/"/g, '&quot;');
@@ -118,12 +117,24 @@ function renderTechSpecsSection(item) {
         </button>
       </div>
 
-      <!-- แสดงข้อมูลปกติ -->
-      <div id="techDisplayView_${item.ID}" class="grid grid-cols-2 gap-2 text-slate-700">
-        <div><b>🗄️ ตู้ควบคุม/เบรกเกอร์:</b> <span class="text-slate-900 font-medium">${cBox || '<i class="text-slate-400 font-normal">ยังไม่ระบุ</i>'}</span></div>
-        <div><b>💡 หลอดไฟที่ติดตั้ง:</b> <span class="text-slate-900 font-medium">${lType || '<i class="text-slate-400 font-normal">ยังไม่ระบุ</i>'}</span></div>
-        <div><b>🔌 ขนาดสายไฟ:</b> <span class="text-slate-900 font-medium">${wSize || '<i class="text-slate-400 font-normal">ยังไม่ระบุ</i>'}</span></div>
-        <div><b>📝 อื่นๆ ระบุ:</b> <span class="text-slate-900 font-medium">${eTech || '<i class="text-slate-400 font-normal">ยังไม่ระบุ</i>'}</span></div>
+      <!-- 🟢 แสดงข้อมูลในหน้าต่างรายละเอียด: บรรทัดแรกเป็นหัวข้อ บรรทัดที่ 2 เป็นข้อมูล -->
+      <div id="techDisplayView_${item.ID}" class="grid grid-cols-2 gap-x-3 gap-y-2.5 text-slate-700">
+        <div class="bg-white/60 p-1.5 rounded-lg border border-sky-100">
+          <span class="block text-slate-500 font-semibold text-[11px]">🗄️ ตู้ควบคุม / เบรกเกอร์</span>
+          <span class="block text-slate-900 font-bold text-xs mt-0.5 break-words">${cBox || '<i class="text-slate-400 font-normal">ยังไม่ระบุ</i>'}</span>
+        </div>
+        <div class="bg-white/60 p-1.5 rounded-lg border border-sky-100">
+          <span class="block text-slate-500 font-semibold text-[11px]">💡 หลอดไฟที่ติดตั้ง</span>
+          <span class="block text-slate-900 font-bold text-xs mt-0.5 break-words">${lType || '<i class="text-slate-400 font-normal">ยังไม่ระบุ</i>'}</span>
+        </div>
+        <div class="bg-white/60 p-1.5 rounded-lg border border-sky-100">
+          <span class="block text-slate-500 font-semibold text-[11px]">🔌 ขนาดสายไฟ</span>
+          <span class="block text-slate-900 font-bold text-xs mt-0.5 break-words">${wSize || '<i class="text-slate-400 font-normal">ยังไม่ระบุ</i>'}</span>
+        </div>
+        <div class="bg-white/60 p-1.5 rounded-lg border border-sky-100">
+          <span class="block text-slate-500 font-semibold text-[11px]">📝 อื่นๆ ระบุ</span>
+          <span class="block text-slate-900 font-bold text-xs mt-0.5 break-words">${eTech || '<i class="text-slate-400 font-normal">ยังไม่ระบุ</i>'}</span>
+        </div>
       </div>
 
       <!-- ฟอร์มแก้ไขข้อมูลเทคนิค -->
@@ -1954,7 +1965,7 @@ function triggerExportPDF() {
 // ==========================================
 async function generateA4ReportPDFClient(equipId, printWindow) {
   const allAssets = (typeof allData !== 'undefined' && allData.length > 0) ? allData : (window.allAssetsData || []);
-  let item = allAssets.find(x => x && (x.ID || x.id || '').toString().trim().toUpperCase() === equipId.toString().trim().toUpperCase());
+  let item = allAssets.find(x => x && (x.ID || x.id || '').toString().trim().toUpperCase() === String(equipId).trim().toUpperCase());
 
   if (!item && typeof currentActiveItemRaw !== 'undefined' && currentActiveItemRaw) {
     item = currentActiveItemRaw;
@@ -1966,13 +1977,13 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
     return;
   }
 
-  // 🔒 ตรวจสอบสิทธิ์ผู้ใช้งาน (Admin หรือ Technician)
+  // 🔒 ตรวจสอบสิทธิ์ผู้ใช้งาน
   const currentRole = window.userRole || sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || '';
   const isAuthorizedTech = (typeof isAdmin !== 'undefined' && isAdmin) ||
                            (typeof isTechnician !== 'undefined' && isTechnician) ||
                            (currentRole === 'admin' || currentRole === 'technician');
 
-  // 🟢 ดึงข้อมูลเทคนิคเพิ่มเติม (รองรับการแมปชื่อคอลัมน์ทุกรูปแบบ)
+  // ดึงข้อมูลเทคนิค
   const controlBox = item['ตู้ควบคุม/เบรกเกอร์'] || item['ตู้ควบคุม_เบรกเกอร์'] || item.controlBox || item['ตู้ควบคุม'] || '';
   const lampType = item['หลอดไฟที่ติดตั้ง'] || item.lampType || item['หลอดไฟ'] || '';
   const wireSize = item['ขนาดสายไฟ'] || item.wireSize || '';
@@ -1995,26 +2006,40 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
     `;
   }
 
+  // 🟢 แก้ไขจุดที่ 1 & 3: ดึงประวัติจาก Memory Cache ก่อนเสมอ เพื่อป้องกัน 404 และทำให้ข้อมูลแสดงครบ
   let historyList = [];
-  try {
-    const res = await apiGet('getRepairHistory');
-    if (res && res.data) {
-      historyList = res.data.filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === equipId.toString().trim().toUpperCase());
+  const searchKey = String(equipId).trim().toUpperCase();
+  const memoryCache = window.allRepairHistoryData || window.repairHistoryData || [];
+
+  if (Array.isArray(memoryCache) && memoryCache.length > 0) {
+    historyList = memoryCache.filter(h => h && h.assetId && String(h.assetId).trim().toUpperCase() === searchKey);
+  } else {
+    try {
+      const res = await apiGet('getRepairHistory');
+      if (res && res.success && Array.isArray(res.data)) {
+        window.allRepairHistoryData = res.data;
+        historyList = res.data.filter(h => h && h.assetId && String(h.assetId).trim().toUpperCase() === searchKey);
+      }
+    } catch (e) {
+      console.warn("Fallback to local history:", e);
     }
-  } catch (e) {
-    const memHistory = window.allRepairHistoryData || window.repairHistoryData || [];
-    historyList = memHistory.filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === equipId.toString().trim().toUpperCase());
   }
 
-  let historyRowsHtml = historyList.map(h => {
-    let statusColor = h.status === 'ซ่อมเสร็จสิ้น' ? '#059669' : (h.status === 'รอจัดจ้าง' ? '#d97706' : '#dc2626');
-    return `<tr>
-      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-size:11px;">${h.date || '-'}<br/><b style="color:#64748b; font-size:10px;">${h.repairId || ''}</b></td>
-      <td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">${h.details || ''}</td>
-      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:${statusColor}; font-size:11px;">${h.status || '-'}</td>
-      <td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">${h.reporter || '-'}</td>
-    </tr>`;
-  }).join('');
+  // 🟢 สร้าง HTML แถวตารางประวัติซ่อมบำรุง
+  let historyRowsHtml = '';
+  if (historyList.length > 0) {
+    historyRowsHtml = historyList.map(h => {
+      let statusColor = h.status === 'ซ่อมเสร็จสิ้น' ? '#059669' : (h.status === 'รอจัดจ้าง' ? '#d97706' : '#dc2626');
+      return `<tr>
+        <td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-size:11px;">${h.date || '-'}<br/><b style="color:#64748b; font-size:10px;">${h.repairId || ''}</b></td>
+        <td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">${h.details || '-'}</td>
+        <td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:${statusColor}; font-size:11px;">${h.status || '-'}</td>
+        <td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">${h.reporter || '-'}</td>
+      </tr>`;
+    }).join('');
+  } else {
+    historyRowsHtml = `<tr><td colspan="4" style="padding:12px; border:1px solid #cbd5e1; text-align:center; color:#94a3b8; font-size:11px;">ไม่มีประวัติการแจ้งซ่อมในระบบ</td></tr>`;
+  }
 
   const assetImgSrc = item.Image || item.image || document.getElementById('wsImg')?.src || '';
   const qrImgSrc = item.QRCode || item.qrCode || document.getElementById('wsUploadedQr')?.src || '';
@@ -2071,7 +2096,6 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
         </tr>
       </table>
 
-      <!-- 🟢 ตารางแสดงข้อมูลคุณลักษณะทางเทคนิคเฉพาะในเอกสาร PDF -->
       ${techSpecsSectionHtml}
 
       <div class="section-title">📜 บันทึกประวัติ ไทม์ไลน์แจ้งซ่อม และสรุปสัญญาจัดจ้างย้อนหลัง</div>
