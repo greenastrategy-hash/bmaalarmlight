@@ -705,33 +705,7 @@ function exportHistoryPDF(equipId) {
     html2canvas:  { 
       scale: 2, 
       useCORS: true, 
-      logging: false,
-      onclone: (clonedDoc) => {
-        // 1. กวาดล้างและแทนที่ค่า oklch ในทุก <style> tag ของ Tailwind v4 ฝั่ง DOM โคลน
-        clonedDoc.querySelectorAll('style').forEach(styleTag => {
-          if (styleTag.innerHTML && styleTag.innerHTML.includes('oklch')) {
-            styleTag.innerHTML = styleTag.innerHTML.replace(/oklch\([^)]+\)/g, '#64748b');
-          }
-        });
-
-        // 2. แปลง Computed Style ของทุก Element ในพื้นที่พิมพ์เป็น rgb(...)
-        const clonedTarget = clonedDoc.getElementById('wsRepairHistoryContainer') || clonedDoc.getElementById('pdfPrintArea');
-        if (clonedTarget) {
-          const allElements = clonedTarget.querySelectorAll('*');
-          allElements.forEach(el => {
-            const comp = window.getComputedStyle(el);
-            
-            el.style.color = convertOklchToRgb(comp.color);
-            el.style.backgroundColor = convertOklchToRgb(comp.backgroundColor);
-            el.style.borderColor = convertOklchToRgb(comp.borderColor);
-            
-            // ลบ Shadow / Ring ที่มีสี oklch แฝงอยู่
-            el.style.boxShadow = 'none';
-            el.style.textShadow = 'none';
-            el.style.outline = 'none';
-          });
-        }
-      }
+      logging: false 
     },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
