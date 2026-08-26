@@ -689,7 +689,10 @@ function convertOklchToRgb(colorStr) {
 // ==========================================
 // 📄 2. ฟังก์ชัน Export PDF ปุ่มสีแดง (คลี่การแสดงผลไทม์ไลน์ออกทั้งหมด)
 // ==========================================
-function exportHistoryPDF(equipId) {
+// ==========================================
+// 📄 2. ฟังก์ชัน Export PDF ปุ่มสีแดง (คลี่การแสดงผลไทม์ไลน์ออกทั้งหมด)
+// ==========================================
+async function exportHistoryPDF(equipId) {
   const container = document.getElementById('wsRepairHistoryContainer');
   if (!container) {
     if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ ไม่พบพื้นที่ข้อมูลสำหรับออกเอกสาร PDF");
@@ -698,7 +701,7 @@ function exportHistoryPDF(equipId) {
 
   if (typeof showQuietAlert === 'function') showQuietAlert("⏳ กำลังสร้างไฟล์ PDF ประวัติการบำรุงรักษา...");
 
-  // 🟢 แก้ไข: ใช้เทคนิค Clone และจัดวางแบบ opacity:0 บนหน้าจอ
+  // 🟢 Clone DOM และตั้งค่า opacity: 1 ป้องกันหน้าว่าง
   const clonedElement = container.cloneNode(true);
   clonedElement.style.maxHeight = 'none';
   clonedElement.style.height = 'auto';
@@ -706,9 +709,9 @@ function exportHistoryPDF(equipId) {
   clonedElement.style.position = 'fixed';
   clonedElement.style.top = '0';
   clonedElement.style.left = '0';
-  clonedElement.style.opacity = '0';
+  clonedElement.style.zIndex = '-9999';
+  clonedElement.style.opacity = '1';
   clonedElement.style.pointerEvents = 'none';
-  clonedElement.style.zIndex = '-1000';
   clonedElement.style.width = '750px';
   clonedElement.style.backgroundColor = '#ffffff';
 
@@ -717,22 +720,34 @@ function exportHistoryPDF(equipId) {
 
   document.body.appendChild(clonedElement);
 
+  // 🟢 รอรูปภาพทั้งหมดใน clonedElement โหลดเสร็จ
+  const imgs = clonedElement.querySelectorAll('img');
+  const imgPromises = Array.from(imgs).map(img => {
+    if (img.complete) return Promise.resolve();
+    return new Promise(resolve => {
+      img.onload = resolve;
+      img.onerror = resolve;
+    });
+  });
+  await Promise.all(imgPromises);
+
   const opt = {
     margin:       [8, 8, 8, 8],
     filename:     `ประวัติการซ่อมบำรุง_${equipId || 'Report'}.pdf`,
     image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2, useCORS: true, logging: false },
+    html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
     pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] },
     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
 
-  html2pdf().set(opt).from(clonedElement).save().then(() => {
+  try {
+    await html2pdf().set(opt).from(clonedElement).save();
     document.body.removeChild(clonedElement);
     if (typeof showQuietAlert === 'function') showQuietAlert("✅ Export PDF ประวัติสำเร็จเรียบร้อย");
-  }).catch(err => {
+  } catch (err) {
     if (document.body.contains(clonedElement)) document.body.removeChild(clonedElement);
     if (typeof showQuietAlert === 'function') showQuietAlert("❌ ออก PDF ไม่สำเร็จ: " + err.toString());
-  });
+  }
 }
 
 // ==========================================
@@ -1692,11 +1707,11 @@ function triggerExportPDF() {
 // ==========================================
 // 📄 1. ฟังก์ชัน Render โครงสร้างรายงาน A4 ครบทุกส่วน (Client A4 Full Report)
 // ==========================================
-function generateA4ReportPDFClient(equipId) {
+async function generateA4ReportPDFClient(equipId) {
   const allAssets = (typeof allData !== 'undefined' && allData.length > 0) ? allData : (window.allAssetsData || []);
   let item = allAssets.find(x => x && (x.ID || x.id || '').toString().trim().toUpperCase() === equipId.toString().trim().toUpperCase());
 
-  if (!item && currentActiveItemRaw) {
+  if (!item && typeof currentActiveItemRaw !== 'undefined' && currentActiveItemRaw) {
     item = currentActiveItemRaw;
   }
 
@@ -1707,7 +1722,8 @@ function generateA4ReportPDFClient(equipId) {
 
   if (typeof showQuietAlert === 'function') showQuietAlert("⏳ กำลังจัดรูปแบบรายงาน PDF (A4)...");
 
-  apiGet('getRepairHistory').then(res => {
+  try {
+    const res = await apiGet('getRepairHistory');
     const historyList = (res.data || []).filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === equipId.toString().trim().toUpperCase());
     const totalReports = historyList.length;
 
@@ -1765,15 +1781,15 @@ function generateA4ReportPDFClient(equipId) {
     const assetImgTag = (assetImgSrc && !assetImgSrc.includes('data:,')) ? `<img src="${assetImgSrc}" crossorigin="anonymous" style="max-height:150px; max-width:100%; object-fit:contain; border-radius:6px;"/>` : '<p style="color:#94a3b8; font-size:11px;">(ไม่มีภาพถ่ายประกอบ)</p>';
     const qrImgTag = (qrImgSrc && !qrImgSrc.includes('data:,')) ? `<img src="${qrImgSrc}" crossorigin="anonymous" style="max-height:120px; max-width:100%; object-fit:contain; border-radius:6px;"/>` : '<p style="color:#94a3b8; font-size:11px;">(ไม่มี QR Code)</p>';
 
-    // 🟢 แก้ไข: เปลี่ยนมาใช้ซ่อนแบบ opacity:0 แทนการดึงพิกัดติดลบ เพื่อให้ Canvas เรนเดอร์ขนาดความกว้าง-สูงได้ปกติ
+    // 🟢 กำหนด opacity: 1 และซ่อน z-index: -9999 ไว้หลังสุดเพื่อป้องกัน PDF ว่างเปล่า
     const reportContainer = document.createElement('div');
     reportContainer.style.position = 'fixed';
     reportContainer.style.top = '0';
     reportContainer.style.left = '0';
-    reportContainer.style.opacity = '0';
-    reportContainer.style.pointerEvents = 'none';
-    reportContainer.style.zIndex = '-1000';
     reportContainer.style.width = '790px';
+    reportContainer.style.zIndex = '-9999';
+    reportContainer.style.opacity = '1';
+    reportContainer.style.pointerEvents = 'none';
     reportContainer.style.backgroundColor = '#ffffff';
     reportContainer.style.color = '#1e293b';
     reportContainer.style.fontFamily = 'Garuda, Thonburi, Tahoma, sans-serif';
@@ -1880,24 +1896,31 @@ function generateA4ReportPDFClient(equipId) {
 
     document.body.appendChild(reportContainer);
 
+    // 🟢 รอให้รูปภาพโหลดเสร็จก่อนจับภาพลง PDF
+    const imgs = reportContainer.querySelectorAll('img');
+    const imgPromises = Array.from(imgs).map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise(resolve => {
+        img.onload = resolve;
+        img.onerror = resolve;
+      });
+    });
+    await Promise.all(imgPromises);
+
     const opt = {
       margin:       [8, 8, 8, 8],
       filename:     `Report_${equipId}.pdf`,
       image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, logging: false },
+      html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    html2pdf().set(opt).from(reportContainer).save().then(() => {
-      document.body.removeChild(reportContainer);
-      if (typeof showQuietAlert === 'function') showQuietAlert("✅ Export PDF รายงาน A4 สำเร็จเรียบร้อย");
-    }).catch(err => {
-      if (document.body.contains(reportContainer)) document.body.removeChild(reportContainer);
-      if (typeof showQuietAlert === 'function') showQuietAlert("❌ สร้าง PDF A4 ไม่สำเร็จ: " + err.toString());
-    });
-  }).catch(() => {
-    if (typeof showQuietAlert === 'function') showQuietAlert("❌ ไม่สามารถดึงประวัติมาสร้าง PDF ได้");
-  });
+    await html2pdf().set(opt).from(reportContainer).save();
+    document.body.removeChild(reportContainer);
+    if (typeof showQuietAlert === 'function') showQuietAlert("✅ Export PDF รายงาน A4 สำเร็จเรียบร้อย");
+  } catch (err) {
+    if (typeof showQuietAlert === 'function') showQuietAlert("❌ สร้าง PDF A4 ไม่สำเร็จ: " + err.toString());
+  }
 }
 
 // =========================================================================
