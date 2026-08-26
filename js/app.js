@@ -469,17 +469,17 @@ function closeModal() { document.getElementById('detailsModal')?.classList.add('
 async function refreshHistoryView(equipId) {
   const container = document.getElementById('wsRepairHistoryContainer');
   if (!container) return;
-  container.innerHTML = '<p class="text-slate-400 text-center py-4">⏳ กำลังโหลดประวัติการบำรุงรักษา...</p>';
+  container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs font-medium">⏳ กำลังโหลดประวัติการบำรุงรักษา...</p>';
 
   try {
     const res = await apiGet('getRepairHistory');
     const history = res.data || [];
     const searchKey = equipId.toString().trim().toUpperCase();
     
-    // 1. กรองเฉพาะประวัติของครุภัณฑ์ ID นี้
+    // 1. กรองประวัติทั้งหมดของครุภัณฑ์ ID นี้ (รวมทุกสถานะ: รอดำเนินการ, ซ่อมเสร็จสิ้น, รอจัดจ้าง)
     const filtered = history.filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === searchKey);
 
-    // 2. จัดเรียงไทม์ไลน์: ล่าสุดอยู่บนสุด (Newest First)
+    // 2. จัดเรียงไทม์ไลน์: รายการล่าสุดอยู่บนสุด (Newest First)
     filtered.sort((a, b) => {
       const parseDate = (dStr) => {
         if (!dStr) return 0;
@@ -492,7 +492,7 @@ async function refreshHistoryView(equipId) {
       return parseDate(b.date) - parseDate(a.date);
     });
 
-    // ตรวจสอบใบงานที่อยู่ระหว่างดำเนินการเพื่อผูกเข้ากับฟอร์มช่าง
+    // อัปเดตรหัสใบงานในฟอร์มช่างกรณีมีใบงานค้าง
     const activeTicket = filtered.find(h => h.status === 'รอดำเนินการ' || h.status === 'รอจัดจ้าง');
     if (activeTicket) {
       document.getElementById('techRepairId').value = activeTicket.repairId;
@@ -506,7 +506,7 @@ async function refreshHistoryView(equipId) {
     // 3. สรุปยอดรวมการแจ้งซ่อมสะสม
     const summaryHtml = `
       <div class="bg-slate-100 text-slate-700 p-2.5 rounded-xl border border-slate-200 text-[11px] font-bold flex justify-between items-center mb-2 shadow-2xs w-full">
-        <span class="flex items-center gap-1"><i class="ph-bold ph-chart-bar text-emerald-600"></i> สถิติแจ้งซ่อมสะสม:</span>
+        <span class="flex items-center gap-1"><i class="ph-bold ph-chart-bar text-emerald-600"></i> สถิติบันทึกประวัติสะสม:</span>
         <span class="bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 rounded-full font-extrabold">${filtered.length} รายการ</span>
       </div>
     `;
@@ -515,18 +515,17 @@ async function refreshHistoryView(equipId) {
       container.innerHTML = `
         <div class="flex flex-col gap-1 w-full">
           ${summaryHtml}
-          <div class="text-slate-400 text-center py-8 bg-white border border-slate-200 rounded-xl shadow-2xs">
+          <div class="text-slate-400 text-center py-8 bg-white border border-slate-200 rounded-xl shadow-2xs text-xs">
             <i class="ph-bold ph-folder-open text-2xl text-slate-300 mb-1 block"></i>
-            ไม่พบประวัติการแจ้งซ่อมบำรุงสำหรับครุภัณฑ์นี้
+            ไม่พบประวัติการแจ้งซ่อมหรือการจัดจ้างสำหรับครุภัณฑ์นี้
           </div>
         </div>`;
       return;
     }
 
-    // 4. วนลูปสร้างการ์ดไทม์ไลน์ประวัติการซ่อมบำรุง
+    // 4. วนลูปสร้างการ์ดแสดงผลไทม์ไลน์
     let timelineHtml = '';
     filtered.forEach((h) => {
-      // แยกธีมสีและป้ายตามสถานะ
       let badgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
       let accentBorder = 'border-l-emerald-500';
       
@@ -538,24 +537,32 @@ async function refreshHistoryView(equipId) {
         accentBorder = 'border-l-amber-500';
       }
 
-      // แกะรายละเอียดกรณีมีการแยก Tag จากช่าง
-      let formattedDetails = h.details || '-';
+      let rawDetails = h.details || '-';
       let materialsText = '';
-      if (formattedDetails.includes('OP_TYPE:')) {
-        const parts = formattedDetails.split('##');
+      let contractText = '';
+
+      // แยกข้อมูลกรณีมีข้อความการจัดจ้างหรือ Tag พิเศษจากช่าง
+      if (rawDetails.includes('[บันทึกจัดจ้าง]:')) {
+        const splitParts = rawDetails.split('[บันทึกจัดจ้าง]:');
+        rawDetails = splitParts[0].trim();
+        contractText = splitParts[1].trim();
+      }
+
+      if (rawDetails.includes('OP_TYPE:')) {
+        const parts = rawDetails.split('##');
         let detailsVal = '', typeVal = '';
         parts.forEach(p => {
           if (p.startsWith('OP_TYPE:')) typeVal = p.replace('OP_TYPE:', '');
           if (p.startsWith('DETAILS:')) detailsVal = p.replace('DETAILS:', '');
           if (p.startsWith('MATERIALS:')) materialsText = p.replace('MATERIALS:', '');
         });
-        formattedDetails = `[${typeVal}] ${detailsVal}`;
+        rawDetails = `[${typeVal}] ${detailsVal}`;
       }
 
       timelineHtml += `
         <div class="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs border-l-4 ${accentBorder} space-y-2.5 transition-all">
           
-          <!-- Header: เลขใบงาน + วันที่ + ป้ายสถานะ -->
+          <!-- หัวใบงาน & ป้ายสถานะ -->
           <div class="flex justify-between items-center border-b border-slate-100 pb-2">
             <div class="flex items-center gap-1.5">
               <span class="font-extrabold text-slate-800 text-xs">📌 ${h.repairId}</span>
@@ -564,18 +571,28 @@ async function refreshHistoryView(equipId) {
             <span class="px-2 py-0.5 rounded-full border text-[10px] font-bold ${badgeStyle}">${h.status}</span>
           </div>
 
-          <!-- Content: อาการ / ผลการปฏิบัติงาน -->
+          <!-- รายละเอียดการแจ้งซ่อม / ประมาณราคา -->
           <div class="text-[11px] text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-100 leading-relaxed whitespace-pre-line">
-            ${formattedDetails}
+            ${rawDetails}
             ${materialsText ? `<div class="mt-1.5 pt-1.5 border-t border-slate-200 text-slate-600 font-medium"><i class="ph-bold ph-wrench text-emerald-600"></i> <b>อุปกรณ์ที่ใช้:</b> ${materialsText}</div>` : ''}
           </div>
 
-          <!-- Footer: ผู้บันทึก + ปุ่มเปิดดูรูปภาพ/ไฟล์หลักฐาน -->
+          <!-- ข้อมูลสัญญาจัดจ้าง (แสดงเมื่อมีบันทึกจัดจ้าง) -->
+          ${contractText ? `
+            <div class="text-[11px] text-amber-900 bg-amber-50/70 p-2.5 rounded-lg border border-amber-200 leading-relaxed">
+              <div class="font-bold flex items-center gap-1 text-amber-900 mb-0.5">
+                <i class="ph-bold ph-file-text text-amber-700"></i> รายละเอียดสัญญาจัดจ้าง:
+              </div>
+              <div>${contractText}</div>
+            </div>
+          ` : ''}
+
+          <!-- ผู้บันทึก & ปุ่มดูไฟล์แนบ/ภาพสัญญา -->
           <div class="flex justify-between items-center text-[10px] text-slate-400 pt-0.5">
             <span class="flex items-center gap-1"><i class="ph-bold ph-user"></i> ${h.reporter || '-'} ${h.phone ? `(📞 ${h.phone})` : ''}</span>
             ${h.imageAfter ? `
               <button type="button" onclick="openImageModal('${h.imageAfter}')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-md font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors">
-                <i class="ph-bold ph-image text-xs"></i> ดูไฟล์หลักฐาน
+                <i class="ph-bold ph-image text-xs"></i> ดูไฟล์หลักฐาน/เอกสารสัญญา
               </button>
             ` : '<span class="text-slate-300">ไม่มีไฟล์แนบ</span>'}
           </div>
