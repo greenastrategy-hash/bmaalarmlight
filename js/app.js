@@ -1114,9 +1114,10 @@ async function handleTechSubmit(e) {
   }
 
   const completeDetails = `OP_TYPE:${actionType}##DETAILS:${techDetails}##MATERIALS:${materialsString}`;
+  const assetId = document.getElementById('techEquipId').value;
   const data = {
     repairId: document.getElementById('techRepairId').value,
-    assetId: document.getElementById('techEquipId').value,
+    assetId: assetId,
     details: completeDetails,
     technicianName: document.getElementById('techName').value,
     imageAfter: compressedImageMap['imageAfterFile'] || null
@@ -1129,12 +1130,35 @@ async function handleTechSubmit(e) {
     hideLoadingModal();
     if (btn) btn.disabled = false;
     showQuietAlert(res.message);
+
     if (res.success) {
       document.getElementById('techForm').reset();
       document.getElementById('dynamicMaterialsList').innerHTML = '';
       removeImagePreview('preview_tech_after_box', 'preview_tech_after', ['imageAfterCapture', 'imageAfterFile']);
+      
+      // 🟢 1. ล้าง Memory Cache ประวัติซ่อมบำรุง เพื่อให้ดึงข้อมูลไทม์ไลน์ใหม่ทันที
+      window.allRepairHistoryData = null;
+
+      // 🟢 2. อัปเดตสถานะในหน่วยความจำทันที (ถ้าซ่อมแซมเอง สถานะครุภัณฑ์กลับเป็น "ปกติ")
+      const newStatus = (actionType === 'ซ่อมแซมเอง' || actionType === 'ปิดงานซ่อม') ? 'ปกติ' : 'รอจัดจ้าง';
+      
+      if (currentActiveItemRaw && currentActiveItemRaw.ID === assetId) {
+        currentActiveItemRaw.Status = newStatus;
+        currentActiveItemRaw.status = newStatus;
+      }
+      
+      const targetAsset = allData.find(x => x.ID === assetId);
+      if (targetAsset) {
+        targetAsset.Status = newStatus;
+        targetAsset.status = newStatus;
+      }
+
+      // 🟢 3. อัปเดตหน้าต่างรายละเอียดและพิกัดบนแผนที่ทันทีโดยไม่ต้องรีเฟรชหน้าเว็บ
+      if (currentActiveItemRaw && currentActiveItemRaw.ID === assetId) {
+        openDetailsWorkspace(currentActiveItemRaw);
+      }
+
       loadMarkers();
-      closeModal();
     }
   } catch (err) {
     hideLoadingModal();
@@ -2006,33 +2030,75 @@ async function generateA4ReportPDFClient(equipId, printWindow) {
     `;
   }
 
-  // 🟢 แก้ไขจุดที่ 1 & 3: ดึงประวัติจาก Memory Cache ก่อนเสมอ เพื่อป้องกัน 404 และทำให้ข้อมูลแสดงครบ
+  // ดึงประวัติซ่อมบำรุง
   let historyList = [];
   const searchKey = String(equipId).trim().toUpperCase();
-  const memoryCache = window.allRepairHistoryData || window.repairHistoryData || [];
-
-  if (Array.isArray(memoryCache) && memoryCache.length > 0) {
-    historyList = memoryCache.filter(h => h && h.assetId && String(h.assetId).trim().toUpperCase() === searchKey);
-  } else {
-    try {
-      const res = await apiGet('getRepairHistory');
-      if (res && res.success && Array.isArray(res.data)) {
-        window.allRepairHistoryData = res.data;
-        historyList = res.data.filter(h => h && h.assetId && String(h.assetId).trim().toUpperCase() === searchKey);
-      }
-    } catch (e) {
-      console.warn("Fallback to local history:", e);
+  
+  try {
+    const res = await apiGet('getRepairHistory');
+    if (res && res.success && Array.isArray(res.data)) {
+      historyList = res.data.filter(h => h && h.assetId && String(h.assetId).trim().toUpperCase() === searchKey);
     }
+  } catch (e) {
+    const memoryCache = window.allRepairHistoryData || window.repairHistoryData || [];
+    historyList = memoryCache.filter(h => h && h.assetId && String(h.assetId).trim().toUpperCase() === searchKey);
   }
 
-  // 🟢 สร้าง HTML แถวตารางประวัติซ่อมบำรุง
+  // 🟢 ถอดรหัสข้อความ OP_TYPE ออกเป็นรูปแบบไทม์ไลน์อ่านง่ายลงในตาราง PDF
   let historyRowsHtml = '';
   if (historyList.length > 0) {
     historyRowsHtml = historyList.map(h => {
       let statusColor = h.status === 'ซ่อมเสร็จสิ้น' ? '#059669' : (h.status === 'รอจัดจ้าง' ? '#d97706' : '#dc2626');
+      
+      let fullText = h.details || '';
+      let initialReportText = fullText;
+      let techLogText = '';
+      let materialsText = '';
+      let contractText = '';
+
+      if (fullText.includes('[บันทึกจัดจ้าง]:')) {
+        const parts = fullText.split('[บันทึกจัดจ้าง]:');
+        fullText = parts[0].trim();
+        contractText = parts[1].trim();
+      }
+
+      if (fullText.includes('[ช่างบันทึก]:')) {
+        const parts = fullText.split('[ช่างบันทึก]:');
+        initialReportText = parts[0].trim();
+        techLogText = parts[1].trim();
+      } else if (fullText.includes('OP_TYPE:')) {
+        techLogText = fullText;
+        initialReportText = 'แจ้งซ่อมผ่านระบบ';
+      }
+
+      if (techLogText.includes('OP_TYPE:')) {
+        const opParts = techLogText.split('##');
+        let detailsVal = '', typeVal = '';
+        opParts.forEach(p => {
+          if (p.startsWith('OP_TYPE:')) typeVal = p.replace('OP_TYPE:', '');
+          if (p.startsWith('DETAILS:')) detailsVal = p.replace('DETAILS:', '');
+          if (p.startsWith('MATERIALS:')) materialsText = p.replace('MATERIALS:', '');
+        });
+        techLogText = `[${typeVal}] ${detailsVal}`;
+      }
+
+      // สร้างข้อความแยกบรรทัดแสดงขั้นตอนใน PDF
+      let formattedDetailsHtml = `<div style="line-height:1.4;">`;
+      formattedDetailsHtml += `<div><b>1. แจ้งซ่อม:</b> ${initialReportText}</div>`;
+      if (techLogText) {
+        formattedDetailsHtml += `<div style="margin-top:2px; color:#1e3a8a;"><b>2. ผลงานช่าง:</b> ${techLogText}</div>`;
+      }
+      if (materialsText) {
+        formattedDetailsHtml += `<div style="margin-top:1px; color:#475569; font-size:10px;"><b>📦 วัสดุอุปกรณ์ที่ใช้:</b> ${materialsText}</div>`;
+      }
+      if (contractText) {
+        formattedDetailsHtml += `<div style="margin-top:2px; color:#065f46;"><b>3. งานสัญญาจัดจ้าง:</b> ${contractText}</div>`;
+      }
+      formattedDetailsHtml += `</div>`;
+
       return `<tr>
         <td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-size:11px;">${h.date || '-'}<br/><b style="color:#64748b; font-size:10px;">${h.repairId || ''}</b></td>
-        <td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">${h.details || '-'}</td>
+        <td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">${formattedDetailsHtml}</td>
         <td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:${statusColor}; font-size:11px;">${h.status || '-'}</td>
         <td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">${h.reporter || '-'}</td>
       </tr>`;
