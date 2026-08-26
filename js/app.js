@@ -538,6 +538,9 @@ function openDetailsWorkspace(item) {
     </div>
   `;
 
+  // 🟢 เพิ่มการเรียกเรนเดอร์ส่วนข้อมูลทางเทคนิควิศวกรรมเฉพาะ (Admin & Tech)
+  renderTechSpecsSection(item);
+
   const navBtn = document.getElementById('wsNavBtn');
   const streetViewBtn = document.getElementById('wsStreetViewBtn');
   if (item.Lat && item.Lng) {
@@ -1409,6 +1412,21 @@ function triggerEditAsset() {
   document.getElementById('edit_lat').value = currentActiveItemRaw.Lat || '';
   document.getElementById('edit_lng').value = currentActiveItemRaw.Lng || '';
   document.getElementById('edit_note').value = currentActiveItemRaw.Note || '';
+
+  // 🟢 เพิ่มการดึงค่า 4 ฟิลด์ข้อมูลทางเทคนิคมาใส่ในฟอร์มแก้ไข
+  if (document.getElementById('edit_controlBox')) {
+    document.getElementById('edit_controlBox').value = currentActiveItemRaw['ตู้ควบคุม_เบรกเกอร์'] || currentActiveItemRaw['ตู้ควบคุม/เบรกเกอร์'] || currentActiveItemRaw.controlBox || '';
+  }
+  if (document.getElementById('edit_lampType')) {
+    document.getElementById('edit_lampType').value = currentActiveItemRaw['หลอดไฟที่ติดตั้ง'] || currentActiveItemRaw.lampType || '';
+  }
+  if (document.getElementById('edit_wireSize')) {
+    document.getElementById('edit_wireSize').value = currentActiveItemRaw['ขนาดสายไฟ'] || currentActiveItemRaw.wireSize || '';
+  }
+  if (document.getElementById('edit_extraTech')) {
+    document.getElementById('edit_extraTech').value = currentActiveItemRaw['ข้อมูลเทคนิคอื่นๆ'] || currentActiveItemRaw['อื่นๆ'] || currentActiveItemRaw.extraTech || '';
+  }
+
   document.getElementById('editAssetModal')?.classList.remove('hidden');
 }
 
@@ -1426,10 +1444,20 @@ async function handleFormSubmit(e) {
   btn.innerText = "⏳ กำลังบันทึกข้อมูล...";
 
   const data = {
-    type: form.type.value, assetNo: form.assetNo.value, name: form.name.value,
-    department: form.department.value, location: form.location.value,
-    lat: form.lat.value, lng: form.lng.value, status: form.status.value,
+    type: form.type.value, 
+    assetNo: form.assetNo.value, 
+    name: form.name.value,
+    department: form.department.value, 
+    location: form.location.value,
+    lat: form.lat.value, 
+    lng: form.lng.value, 
+    status: form.status.value,
     note: form.note.value || '', 
+    // 🟢 ส่งข้อมูลทางเทคนิคเพิ่มเติม 4 รายการ
+    controlBox: form.controlBox ? form.controlBox.value : '',
+    lampType: form.lampType ? form.lampType.value : '',
+    wireSize: form.wireSize ? form.wireSize.value : '',
+    extraTech: form.extraTech ? form.extraTech.value : '',
     imageFile: compressedImageMap['addImageFile'] || null, 
     qrCodeFile: compressedImageMap['addQrFile'] || null
   };
@@ -1463,6 +1491,11 @@ async function handleEditFormSubmit(e) {
     lat: document.getElementById('edit_lat').value,
     lng: document.getElementById('edit_lng').value,
     note: document.getElementById('edit_note').value,
+    // 🟢 ดึงข้อมูลทางเทคนิค 4 ฟิลด์ใหม่ไปอัปเดต
+    controlBox: document.getElementById('edit_controlBox')?.value || '',
+    lampType: document.getElementById('edit_lampType')?.value || '',
+    wireSize: document.getElementById('edit_wireSize')?.value || '',
+    extraTech: document.getElementById('edit_extraTech')?.value || '',
     imageFile: compressedImageMap['editImageFile'] || null, 
     qrCodeFile: compressedImageMap['editQrFile'] || null
   };
