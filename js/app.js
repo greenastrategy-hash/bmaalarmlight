@@ -669,40 +669,49 @@ async function refreshHistoryView(equipId) {
 }
 
 // ==========================================
-// 📄 1. ฟังก์ชันส่งออก PDF ประวัติไทม์ไลน์ (Client-side HTML2PDF)
+// 📄 2. ฟังก์ชัน Export PDF ประวัติไทม์ไลน์ - แก้ปัญหาสี OKLCH (Tailwind v4)
 // ==========================================
 function exportHistoryPDF(equipId) {
-  const element = document.getElementById('pdfPrintArea') || document.getElementById('wsRepairHistoryContainer');
+  const element = document.getElementById('wsRepairHistoryContainer') || document.getElementById('pdfPrintArea');
   if (!element) {
-    if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ ไม่พบข้อมูลสำหรับออกเอกสาร PDF");
+    if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ ไม่พบพื้นที่ข้อมูลสำหรับออกเอกสาร PDF");
     return;
   }
 
   if (typeof showQuietAlert === 'function') showQuietAlert("⏳ กำลังสร้างไฟล์ PDF ประวัติการบำรุงรักษา...");
 
   const opt = {
-    margin:       [10, 10, 10, 10],
-    filename:     `ประวัติการซ่อมบำรุง_${equipId}.pdf`,
+    margin:       [8, 8, 8, 8],
+    filename:     `ประวัติการซ่อมบำรุง_${equipId || 'Report'}.pdf`,
     image:        { type: 'jpeg', quality: 0.98 },
     html2canvas:  { 
       scale: 2, 
       useCORS: true, 
       logging: false,
-      // ดักจับและแปลงสี oklch (Tailwind v4) ป้องกัน Error ละลาย PDF
+      // 🛠️ แก้ปัญหา oklch: ทำการลบ/แปลงค่าสีก่อนจับภาพส่งออก PDF
       onclone: (clonedDocument) => {
-        const clonedElement = clonedDocument.getElementById('pdfPrintArea') || clonedDocument.getElementById('wsRepairHistoryContainer');
+        const clonedElement = clonedDocument.getElementById('wsRepairHistoryContainer') || clonedDocument.getElementById('pdfPrintArea');
         if (clonedElement) {
           const allNodes = clonedElement.querySelectorAll('*');
           allNodes.forEach(node => {
-            const computedStyle = window.getComputedStyle(node);
-            if (computedStyle.color.includes('oklch')) node.style.color = '#1e293b';
-            if (computedStyle.backgroundColor.includes('oklch')) node.style.backgroundColor = '#ffffff';
-            if (computedStyle.borderColor.includes('oklch')) node.style.borderColor = '#cbd5e1';
+            // ลบ Class ของ Tailwind ที่มักสร้างค่าสี oklch
+            node.style.color = window.getComputedStyle(node).color;
+            
+            // กรองและกวาดล้างค่าสี oklch ออกจาก Style Inline
+            ['color', 'backgroundColor', 'borderColor', 'outlineColor'].forEach(prop => {
+              const val = node.style[prop] || '';
+              if (val.includes('oklch')) {
+                if (prop === 'color') node.style[prop] = '#1e293b';
+                else if (prop === 'backgroundColor') node.style[prop] = '#ffffff';
+                else if (prop === 'borderColor') node.style[prop] = '#cbd5e1';
+                else node.style[prop] = 'transparent';
+              }
+            });
           });
         }
       }
     },
-    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
 
   html2pdf().set(opt).from(element).save().then(() => {
@@ -1525,30 +1534,39 @@ function showLoadingModal(title, sub) {
 
 function hideLoadingModal() { document.getElementById('loadingModal')?.classList.add('hidden'); }
 
-// =========================================================================
-// 📄 ฟังก์ชันฝั่งหน้าบ้านสำหรับกดปุ่ม Export PDF (A4) บน Modal
-// =========================================================================
+// ==========================================
+// 📄 1. ฟังก์ชัน Export PDF (A4) - ป้องกัน Error "google is not defined"
+// ==========================================
 function triggerExportPDF() {
-  if(!currentActiveId) return;
-  showQuietAlert("📄 ระบบกำลังสร้างเอกสารรายงาน PDF...");
-  
-  google.script.run
-    .withSuccessHandler(function(res) {
-      if(res.success) {
-        var a = document.createElement('a'); 
-        a.href = "data:application/pdf;base64," + res.base64; 
-        a.download = res.filename; 
-        a.click();
-        showQuietAlert("✅ ดาวน์โหลดไฟล์ PDF สำเร็จ");
-      } else { 
-        showQuietAlert("❌ " + res.message); 
-      }
-    })
-    .withFailureHandler(function(err) {
-      showQuietAlert("❌ ไม่สามารถส่งไฟล์ได้: รูปภาพหน้างานอาจมีขนาดใหญ่เกินขีดจำกัดของระบบ");
-      console.error("PDF Export Network Error:", err);
-    })
-    .exportAssetPDF(currentActiveId);
+  if (typeof currentActiveId === 'undefined' || !currentActiveId) {
+    if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ ไม่พบรหัสครุภัณฑ์ที่ต้องการส่งออก PDF");
+    return;
+  }
+
+  // ตรวจสอบว่ารันอยู่บน Google Apps Script Web App หรือไม่
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    if (typeof showQuietAlert === 'function') showQuietAlert("📄 ระบบกำลังสร้างเอกสารรายงาน PDF (A4)...");
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (res && res.success) {
+          const a = document.createElement('a');
+          a.href = "data:application/pdf;base64," + res.base64;
+          a.download = res.filename;
+          a.click();
+          if (typeof showQuietAlert === 'function') showQuietAlert("✅ ดาวน์โหลดไฟล์ PDF สำเร็จ");
+        } else {
+          if (typeof showQuietAlert === 'function') showQuietAlert("❌ " + (res ? res.message : "การออก PDF ล้มเหลว"));
+        }
+      })
+      .withFailureHandler(function(err) {
+        if (typeof showQuietAlert === 'function') showQuietAlert("❌ เกิดข้อผิดพลาดฝั่งเซิร์ฟเวอร์: " + err.toString());
+      })
+      .exportAssetPDF(currentActiveId);
+  } else {
+    // หากรันภายนอก (เช่น GitHub Pages) ให้เปลี่ยนไปใช้ Client-side PDF อัตโนมัติ
+    if (typeof showQuietAlert === 'function') showQuietAlert("⚡ กำลังประมวลผล PDF (Client Mode)...");
+    exportHistoryPDF(currentActiveId);
+  }
 }
 
 // =========================================================================
