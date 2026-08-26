@@ -669,7 +669,7 @@ async function refreshHistoryView(equipId) {
 }
 
 // ==========================================
-// 📄 1. ฟังก์ชัน Export PDF ประวัติการบำรุงรักษา (Client-side HTML2PDF)
+// 📄 ฟังก์ชัน Export PDF ประวัติการบำรุงรักษา (แก้ปัญหา OKLCH Color Error)
 // ==========================================
 function exportHistoryPDF(equipId) {
   const element = document.getElementById('pdfPrintArea');
@@ -684,7 +684,32 @@ function exportHistoryPDF(equipId) {
     margin:       [10, 10, 10, 10],
     filename:     `ประวัติการซ่อมบำรุง_${equipId}.pdf`,
     image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2, useCORS: true, logging: false },
+    html2canvas:  { 
+      scale: 2, 
+      useCORS: true, 
+      logging: false,
+      // 🌟 แก้ไข OKLCH Error: ล้าง CSS Rule ที่ใช้ oklch ก่อนที่ html2canvas จะทำงาน
+      onclone: (clonedDocument) => {
+        const clonedElement = clonedDocument.getElementById('pdfPrintArea');
+        if (clonedElement) {
+          // บังคับให้ Element ทั้งหมดภายในพื้นที่พิมพ์ใช้ชุดสีคอมแพทิเบิลแบบย่อ
+          const allNodes = clonedElement.querySelectorAll('*');
+          allNodes.forEach(node => {
+            const computedStyle = window.getComputedStyle(node);
+            // แปลงสไตล์เป็น Inline Text สีปกติหากพบการใช้งาน oklch
+            if (computedStyle.color.includes('oklch')) {
+              node.style.color = '#1e293b';
+            }
+            if (computedStyle.backgroundColor.includes('oklch')) {
+              node.style.backgroundColor = '#ffffff';
+            }
+            if (computedStyle.borderColor.includes('oklch')) {
+              node.style.borderColor = '#cbd5e1';
+            }
+          });
+        }
+      }
+    },
     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
 
