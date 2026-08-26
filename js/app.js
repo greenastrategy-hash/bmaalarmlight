@@ -16,13 +16,167 @@ document.addEventListener("DOMContentLoaded", function () {
   loadIndexData();
 });
 
+// 🛠️ 1. แก้ไข apiGet เพื่อป้องกันปัญหา 404 URL Parameters
 async function apiGet(action, params = {}) {
-  const url = new URL(API_BASE_URL);
-  url.searchParams.append('action', action);
-  Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
-  const response = await fetch(url.toString(), { method: 'GET', mode: 'cors', redirect: 'follow' });
-  if (!response.ok) throw new Error(`HTTP status ${response.status}`);
-  return await response.json();
+  try {
+    const queryParams = new URLSearchParams({ action, ...params }).toString();
+    const sep = API_URL.includes('?') ? '&' : '?';
+    const response = await fetch(`${API_URL}${sep}${queryParams}`, { method: 'GET' });
+    if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+    return await response.json();
+  } catch (err) {
+    console.warn("apiGet Fallback:", err);
+    return null;
+  }
+}
+
+// 🛠️ 2. ปรับปรุงการโหลดประวัติไทม์ไลน์ (มีระบบ Fallback ป้องกันแสดงหน้าข้อผิดพลาด)
+async function loadRepairHistoryTimeline(assetId) {
+  const container = document.getElementById('repairTimelineContainer');
+  if (!container) return;
+
+  container.innerHTML = `<div class="p-6 text-center text-slate-400 font-medium">⏳ กำลังโหลดประวัติ...</div>`;
+
+  let historyData = [];
+  try {
+    const res = await apiGet('getRepairHistory');
+    if (res && res.success && Array.isArray(res.data)) {
+      historyData = res.data;
+    } else if (window.allRepairHistoryData) {
+      historyData = window.allRepairHistoryData;
+    }
+  } catch (e) {
+    if (window.allRepairHistoryData) historyData = window.allRepairHistoryData;
+  }
+
+  const filtered = historyData.filter(h => h && String(h.assetId).trim().toUpperCase() === String(assetId).trim().toUpperCase());
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="p-8 text-center text-slate-400">
+        <i class="ph ph-clock-counter-clockwise text-3xl mb-1 block"></i>
+        ยังไม่มีประวัติการแจ้งซ่อมในระบบ
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(h => {
+    const statusColor = h.status === 'ซ่อมเสร็จสิ้น' ? 'bg-emerald-100 text-emerald-700' : (h.status === 'รอจัดจ้าง' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700');
+    return `
+      <div class="p-3 mb-2 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+        <div class="flex justify-between items-center mb-1">
+          <span class="font-bold text-slate-700">${h.date || '-'} (${h.repairId || '-'})</span>
+          <span class="px-2 py-0.5 rounded font-bold text-[10px] ${statusColor}">${h.status}</span>
+        </div>
+        <div class="text-slate-600 mb-1"><b>อาการ/บันทึก:</b> ${h.details || '-'}</div>
+        <div class="text-slate-400 text-[11px]">👤 ${h.reporter || '-'}</div>
+      </div>`;
+  }).join('');
+}
+
+// 🛠️ 3. เรนเดอร์ส่วนแสดงและบันทึกข้อมูลทางเทคนิค (เฉพาะ Admin & Technician)
+function renderTechSpecsSection(item) {
+  const role = window.userRole || sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || '';
+  const isAuthorized = (role === 'admin' || role === 'technician');
+  const container = document.getElementById('wsTechSpecsContainer');
+  if (!container) return;
+
+  if (!isAuthorized) {
+    container.classList.add('hidden');
+    return;
+  }
+
+  const cBox = item['ตู้ควบคุม_เบรกเกอร์'] || item['ตู้ควบคุม/เบรกเกอร์'] || item.controlBox || '';
+  const lType = item['หลอดไฟที่ติดตั้ง'] || item.lampType || '';
+  const wSize = item['ขนาดสายไฟ'] || item.wireSize || '';
+  const eTech = item['ข้อมูลเทคนิคอื่นๆ'] || item['อื่นๆ'] || item.extraTech || '';
+
+  container.classList.remove('hidden');
+  container.innerHTML = `
+    <div class="mt-3 p-3 bg-sky-50/70 border border-sky-200 rounded-xl text-xs">
+      <div class="flex items-center justify-between mb-2">
+        <span class="font-bold text-sky-900 flex items-center gap-1">
+          ⚡ ข้อมูลเทคนิคเฉพาะ (สิทธิ์ Admin & Technician)
+        </span>
+        <button type="button" onclick="toggleTechEditForm('${item.ID}')" class="px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg text-[11px] transition shadow-sm">
+          ✏️ บันทึก/แก้ไขข้อมูลเทคนิค
+        </button>
+      </div>
+
+      <!-- แสดงข้อมูลปกติ -->
+      <div id="techDisplayView_${item.ID}" class="grid grid-cols-2 gap-2 text-slate-700">
+        <div><b>🗄️ ตู้ควบคุม/เบรกเกอร์:</b> <span class="text-slate-900 font-medium">${cBox || '-'}</span></div>
+        <div><b>💡 หลอดไฟที่ติดตั้ง:</b> <span class="text-slate-900 font-medium">${lType || '-'}</span></div>
+        <div><b>🔌 ขนาดสายไฟ:</b> <span class="text-slate-900 font-medium">${wSize || '-'}</span></div>
+        <div><b>📝 อื่นๆ ระบุ:</b> <span class="text-slate-900 font-medium">${eTech || '-'}</span></div>
+      </div>
+
+      <!-- ฟอร์มแก้ไขข้อมูลเทคนิค -->
+      <form id="techEditForm_${item.ID}" class="hidden space-y-2 mt-2 pt-2 border-t border-sky-200" onsubmit="submitTechSpecs(event, '${item.ID}')">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">ตู้ควบคุม / เบรกเกอร์</label>
+            <input type="text" id="inputControlBox_${item.ID}" value="${cBox}" class="w-full px-2.5 py-1 text-xs border rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น 30A 2P Cutout">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">หลอดไฟที่ติดตั้ง</label>
+            <input type="text" id="inputLampType_${item.ID}" value="${lType}" class="w-full px-2.5 py-1 text-xs border rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น LED Highbay 150W">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">ขนาดสายไฟ</label>
+            <input type="text" id="inputWireSize_${item.ID}" value="${wSize}" class="w-full px-2.5 py-1 text-xs border rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น NYY 2x2.5 sq.mm">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">อื่นๆ ระบุ</label>
+            <input type="text" id="inputExtraTech_${item.ID}" value="${eTech}" class="w-full px-2.5 py-1 text-xs border rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="ระบุเพิ่มเติม...">
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-1">
+          <button type="button" onclick="toggleTechEditForm('${item.ID}')" class="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg text-xs">ยกเลิก</button>
+          <button type="submit" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-xs shadow-sm">💾 บันทึกข้อมูลเทคนิค</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+// 🛠️ 4. ฟังก์ชันเปิด/ปิดฟอร์มแก้ไขข้อมูลเทคนิค
+function toggleTechEditForm(id) {
+  const displayView = document.getElementById(`techDisplayView_${id}`);
+  const editForm = document.getElementById(`techEditForm_${id}`);
+  if (displayView && editForm) {
+    displayView.classList.toggle('hidden');
+    editForm.classList.toggle('hidden');
+  }
+}
+
+// 🛠️ 5. ส่งข้อมูลบันทึกลง Google Sheet ผ่าน API
+async function submitTechSpecs(event, id) {
+  event.preventDefault();
+  const payload = {
+    id: id,
+    controlBox: document.getElementById(`inputControlBox_${id}`)?.value || '',
+    lampType: document.getElementById(`inputLampType_${id}`)?.value || '',
+    wireSize: document.getElementById(`inputWireSize_${id}`)?.value || '',
+    extraTech: document.getElementById(`inputExtraTech_${id}`)?.value || ''
+  };
+
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'saveTechSpecs', data: payload })
+    }).then(r => r.json());
+
+    if (res && res.success) {
+      if (typeof showQuietAlert === 'function') showQuietAlert("✅ บันทึกข้อมูลทางเทคนิคสำเร็จ");
+      // อัปเดตข้อมูล Memory ล่าสุด
+      if (typeof fetchAllEquipmentData === 'function') fetchAllEquipmentData();
+    } else {
+      alert("❌ บันทึกล้มเหลว: " + (res.message || 'เกิดข้อผิดพลาด'));
+    }
+  } catch(e) {
+    alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: " + e.toString());
+  }
 }
 
 async function apiPost(action, data = {}) {
