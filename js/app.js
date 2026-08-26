@@ -1669,43 +1669,19 @@ function generatePdfReport(equipId) {
 }
 
 // ==========================================
-// 📄 1. ฟังก์ชันปุ่ม Export PDF (A4) ด้านบนสุดของ Modal
+// 📄 1. ฟังก์ชันปุ่ม Export PDF (เปลี่ยนเป็นระบบ Native Print A4)
 // ==========================================
 function triggerExportPDF() {
   const targetId = currentActiveId || (currentActiveItemRaw ? currentActiveItemRaw.ID : null);
-  
   if (!targetId) {
     if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ ไม่พบรหัสครุภัณฑ์สำหรับสร้างรายงาน");
     return;
   }
-
-  // หากรันบน Google Apps Script Web App
-  if (typeof google !== 'undefined' && google.script && google.script.run) {
-    if (typeof showQuietAlert === 'function') showQuietAlert("📄 ระบบกำลังสร้างเอกสารรายงาน PDF (A4)...");
-    google.script.run
-      .withSuccessHandler(function(res) {
-        if (res && res.success) {
-          const a = document.createElement('a');
-          a.href = "data:application/pdf;base64," + res.base64;
-          a.download = res.filename;
-          a.click();
-          if (typeof showQuietAlert === 'function') showQuietAlert("✅ ดาวน์โหลดไฟล์ PDF สำเร็จ");
-        } else {
-          if (typeof showQuietAlert === 'function') showQuietAlert("❌ " + (res ? res.message : "การออก PDF ล้มเหลว"));
-        }
-      })
-      .withFailureHandler(function(err) {
-        if (typeof showQuietAlert === 'function') showQuietAlert("❌ เกิดข้อผิดพลาดฝั่งเซิร์ฟเวอร์: " + err.toString());
-      })
-      .exportAssetPDF(targetId);
-  } else {
-    // หากรันบน GitHub Pages / Standard Client: เรียกสร้างฟอร์ม A4 ฉบับเต็ม
-    generateA4ReportPDFClient(targetId);
-  }
+  generateA4ReportPDFClient(targetId);
 }
 
 // ==========================================
-// 📄 1. ฟังก์ชัน Render โครงสร้างรายงาน A4 ครบทุกส่วน (Client A4 Full Report)
+// 📄 2. ฟังก์ชันสร้างหน้าเอกสารพร้อมสั่งพิมพ์/บันทึกเป็น PDF (Print Window)
 // ==========================================
 async function generateA4ReportPDFClient(equipId) {
   const allAssets = (typeof allData !== 'undefined' && allData.length > 0) ? allData : (window.allAssetsData || []);
@@ -1720,91 +1696,104 @@ async function generateA4ReportPDFClient(equipId) {
     return;
   }
 
-  if (typeof showQuietAlert === 'function') showQuietAlert("⏳ กำลังจัดรูปแบบรายงาน PDF (A4)...");
+  if (typeof showQuietAlert === 'function') showQuietAlert("⏳ กำลังเตรียมหน้าเอกสารสำหรับสั่งพิมพ์ / บันทึก PDF...");
 
+  // ดึงประวัติการแจ้งซ่อม
+  let historyList = [];
   try {
     const res = await apiGet('getRepairHistory');
-    const historyList = (res.data || []).filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === equipId.toString().trim().toUpperCase());
-    const totalReports = historyList.length;
+    if (res && res.data) {
+      historyList = res.data.filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === equipId.toString().trim().toUpperCase());
+    }
+  } catch (e) {
+    const memHistory = window.allRepairHistoryData || window.repairHistoryData || [];
+    historyList = memHistory.filter(h => h && h.assetId && h.assetId.toString().trim().toUpperCase() === equipId.toString().trim().toUpperCase());
+  }
 
-    let historyRowsHtml = historyList.map(h => {
-      let statusColor = h.status === 'ซ่อมเสร็จสิ้น' ? '#059669' : '#d97706';
-      let detailsClean = h.details || '';
-      let formattedDetails = '';
+  const totalReports = historyList.length;
 
-      if (detailsClean.indexOf('[ช่างบันทึก]:') !== -1) {
-        let splits = detailsClean.split('[ช่างบันทึก]:');
-        let reportPart = splits[0].trim();
-        let techPart = splits[1].trim();
-        formattedDetails = '<b>🚨 รายการแจ้งซ่อม:</b> ' + reportPart + '<br/>';
+  let historyRowsHtml = historyList.map(h => {
+    let statusColor = h.status === 'ซ่อมเสร็จสิ้น' ? '#059669' : '#d97706';
+    let detailsClean = h.details || '';
+    let formattedDetails = '';
 
-        if (techPart.indexOf('OP_TYPE:') !== -1) {
-          let opType = techPart.split('OP_TYPE:')[1].split('##')[0];
-          let techDetailsText = techPart.split('DETAILS:')[1].split('##')[0];
-          let techMaterialsText = techPart.split('MATERIALS:')[1] || '';
-          let badgeColor = opType === 'ซ่อมแซมเอง' ? 'background-color:#e6f4ea; color:#137333;' : 'background-color:#fef7e0; color:#b06000;';
+    if (detailsClean.indexOf('[ช่างบันทึก]:') !== -1) {
+      let splits = detailsClean.split('[ช่างบันทึก]:');
+      let reportPart = splits[0].trim();
+      let techPart = splits[1].trim();
+      formattedDetails = '<b>🚨 รายการแจ้งซ่อม:</b> ' + reportPart + '<br/>';
 
-          formattedDetails += '<div style="margin-top:4px; padding-top:4px; border-top:1px dashed #cbd5e1; font-size:11px; line-height:1.3;">';
-          formattedDetails += '  <b>🔧 ผลดำเนินการซ่อม:</b> <span style="' + badgeColor + ' padding:1px 5px; border-radius:4px; font-weight:bold; font-size:10px;">' + opType + '</span><br/>';
-          formattedDetails += '  <span style="color:#065f46;">• รายละเอียด: ' + techDetailsText + '</span>';
-          if (opType === 'ซ่อมแซมเอง') {
-            formattedDetails += '<br/><span style="color:#475569;">• 📦 วัสดุ: ' + techMaterialsText + '</span>';
-          }
-          formattedDetails += '</div>';
-        } else {
-          formattedDetails += '<div style="margin-top:4px; border-top:1px dashed #cbd5e1; font-size:11px;"><span style="color:#065f46;"><b>🔧 ผลดำเนินการซ่อม:</b> ' + techPart + '</span></div>';
+      if (techPart.indexOf('OP_TYPE:') !== -1) {
+        let opType = techPart.split('OP_TYPE:')[1].split('##')[0];
+        let techDetailsText = techPart.split('DETAILS:')[1].split('##')[0];
+        let techMaterialsText = techPart.split('MATERIALS:')[1] || '';
+        let badgeColor = opType === 'ซ่อมแซมเอง' ? 'background-color:#e6f4ea; color:#137333;' : 'background-color:#fef7e0; color:#b06000;';
+
+        formattedDetails += '<div style="margin-top:4px; padding-top:4px; border-top:1px dashed #cbd5e1; font-size:11px; line-height:1.3;">';
+        formattedDetails += '  <b>🔧 ผลดำเนินการซ่อม:</b> <span style="' + badgeColor + ' padding:1px 5px; border-radius:4px; font-weight:bold; font-size:10px;">' + opType + '</span><br/>';
+        formattedDetails += '  <span style="color:#065f46;">• รายละเอียด: ' + techDetailsText + '</span>';
+        if (opType === 'ซ่อมแซมเอง') {
+          formattedDetails += '<br/><span style="color:#475569;">• 📦 วัสดุ: ' + techMaterialsText + '</span>';
         }
+        formattedDetails += '</div>';
       } else {
-        formattedDetails = '<b>🚨 รายการแจ้งซ่อม:</b> ' + detailsClean;
+        formattedDetails += '<div style="margin-top:4px; border-top:1px dashed #cbd5e1; font-size:11px;"><span style="color:#065f46;"><b>🔧 ผลดำเนินการซ่อม:</b> ' + techPart + '</span></div>';
       }
-
-      let reporterClean = h.reporter || '';
-      let formattedReporter = reporterClean.indexOf(' / ช่าง:') !== -1 ?
-        '<b>👤 ผู้แจ้ง:</b> ' + reporterClean.split(' / ช่าง:')[0].trim() + '<br/><b>🔧 ช่าง:</b> ' + reporterClean.split(' / ช่าง:')[1].trim() :
-        '<b>👤 ผู้แจ้ง:</b> ' + reporterClean;
-
-      return '<tr>' +
-        '<td style="padding:5px; border:1px solid #cbd5e1; text-align:center; font-size:11px;">' + (h.date || '-') + '<br/><b style="color:#64748b; font-size:10px;">' + (h.repairId || '') + '</b></td>' +
-        '<td style="padding:5px; border:1px solid #cbd5e1; font-size:11px;">' + formattedDetails + '</td>' +
-        '<td style="padding:5px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:' + statusColor + '; font-size:11px;">' + (h.status || '-') + '</td>' +
-        '<td style="padding:5px; border:1px solid #cbd5e1; font-size:11px;">' + formattedReporter + '</td>' +
-      '</tr>';
-    }).join('');
-
-    if (historyList.length === 0) {
-      historyRowsHtml = '<tr><td colspan="4" style="padding:10px; text-align:center; color:#94a3b8; font-size:11px;">ไม่มีบันทึกประวัติการแจ้งชำรุดเสียหายในระบบ</td></tr>';
+    } else {
+      formattedDetails = '<b>🚨 รายการแจ้งซ่อม:</b> ' + detailsClean;
     }
 
-    const assetImgSrc = item.Image || item.image || document.getElementById('wsImg')?.src || '';
-    const qrImgSrc = item.QRCode || item.qrCode || document.getElementById('wsUploadedQr')?.src || '';
+    let reporterClean = h.reporter || '';
+    let formattedReporter = reporterClean.indexOf(' / ช่าง:') !== -1 ?
+      '<b>👤 ผู้แจ้ง:</b> ' + reporterClean.split(' / ช่าง:')[0].trim() + '<br/><b>🔧 ช่าง:</b> ' + reporterClean.split(' / ช่าง:')[1].trim() :
+      '<b>👤 ผู้แจ้ง:</b> ' + reporterClean;
 
-    const assetImgTag = (assetImgSrc && !assetImgSrc.includes('data:,')) ? `<img src="${assetImgSrc}" crossorigin="anonymous" style="max-height:150px; max-width:100%; object-fit:contain; border-radius:6px;"/>` : '<p style="color:#94a3b8; font-size:11px;">(ไม่มีภาพถ่ายประกอบ)</p>';
-    const qrImgTag = (qrImgSrc && !qrImgSrc.includes('data:,')) ? `<img src="${qrImgSrc}" crossorigin="anonymous" style="max-height:120px; max-width:100%; object-fit:contain; border-radius:6px;"/>` : '<p style="color:#94a3b8; font-size:11px;">(ไม่มี QR Code)</p>';
+    return '<tr>' +
+      '<td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-size:11px;">' + (h.date || '-') + '<br/><b style="color:#64748b; font-size:10px;">' + (h.repairId || '') + '</b></td>' +
+      '<td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">' + formattedDetails + '</td>' +
+      '<td style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:' + statusColor + '; font-size:11px;">' + (h.status || '-') + '</td>' +
+      '<td style="padding:6px; border:1px solid #cbd5e1; font-size:11px;">' + formattedReporter + '</td>' +
+    '</tr>';
+  }).join('');
 
-    // 🟢 กำหนด opacity: 1 และซ่อน z-index: -9999 ไว้หลังสุดเพื่อป้องกัน PDF ว่างเปล่า
-    const reportContainer = document.createElement('div');
-    reportContainer.style.position = 'fixed';
-    reportContainer.style.top = '0';
-    reportContainer.style.left = '0';
-    reportContainer.style.width = '790px';
-    reportContainer.style.zIndex = '-9999';
-    reportContainer.style.opacity = '1';
-    reportContainer.style.pointerEvents = 'none';
-    reportContainer.style.backgroundColor = '#ffffff';
-    reportContainer.style.color = '#1e293b';
-    reportContainer.style.fontFamily = 'Garuda, Thonburi, Tahoma, sans-serif';
-    reportContainer.style.padding = '20px';
-    reportContainer.style.boxSizing = 'border-box';
+  if (historyList.length === 0) {
+    historyRowsHtml = '<tr><td colspan="4" style="padding:12px; text-align:center; color:#94a3b8; font-size:11px;">ไม่มีบันทึกประวัติการแจ้งชำรุดเสียหายในระบบ</td></tr>';
+  }
 
-    const printDateStr = new Date().toLocaleDateString('th-TH');
+  const assetImgSrc = item.Image || item.image || document.getElementById('wsImg')?.src || '';
+  const qrImgSrc = item.QRCode || item.qrCode || document.getElementById('wsUploadedQr')?.src || '';
 
-    reportContainer.innerHTML = `
-      <div style="text-align:center; border-bottom:2px double #059669; padding-bottom:4px; margin-bottom:10px;">
-        <h2 style="font-size:18px; font-weight:bold; color:#065f46; margin:0 0 3px 0;">รายงานข้อมูลคุณลักษณะและทะเบียนประวัติครุภัณฑ์ประจำพิกัด</h2>
-        <p style="font-size:11px; color:#64748b; margin:0;">รหัสอ้างอิง: ${item.ID || item.id || '-'} | วันที่พิมพ์เอกสาร: ${printDateStr}</p>
+  const assetImgTag = (assetImgSrc && !assetImgSrc.includes('data:,')) ? `<img src="${assetImgSrc}" style="max-height:160px; max-width:100%; object-fit:contain; border-radius:6px;"/>` : '<p style="color:#94a3b8; font-size:11px;">(ไม่มีภาพถ่ายประกอบ)</p>';
+  const qrImgTag = (qrImgSrc && !qrImgSrc.includes('data:,')) ? `<img src="${qrImgSrc}" style="max-height:130px; max-width:100%; object-fit:contain; border-radius:6px;"/>` : '<p style="color:#94a3b8; font-size:11px;">(ไม่มี QR Code)</p>';
+  const printDateStr = new Date().toLocaleDateString('th-TH');
+
+  // เปิดหน้าต่างใหม่เพื่อ Render เอกสารแบบพร้อมพิมพ์ทันที
+  const printWindow = window.open('', '_blank', 'width=900,height=1000');
+  
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html lang="th">
+    <head>
+      <meta charset="UTF-8">
+      <title>รายงานทะเบียนประวัติครุภัณฑ์_${item.ID || equipId}</title>
+      <style>
+        @page { size: A4 portrait; margin: 12mm; }
+        body { font-family: "Sarabun", "Garuda", Tahoma, sans-serif; color: #1e293b; margin: 0; padding: 0; background: #fff; }
+        table { width: 100%; border-collapse: collapse; }
+        .page-header { text-align: center; border-bottom: 2px double #059669; padding-bottom: 6px; margin-bottom: 12px; }
+        .section-title { font-size: 13px; font-weight: bold; color: #0f172a; margin-top: 10px; margin-bottom: 6px; border-left: 4px solid #059669; padding-left: 8px; }
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="page-header">
+        <h2 style="font-size: 18px; font-weight: bold; color: #065f46; margin: 0 0 4px 0;">รายงานข้อมูลคุณลักษณะและทะเบียนประวัติครุภัณฑ์ประจำพิกัด</h2>
+        <p style="font-size: 11px; color: #64748b; margin: 0;">รหัสอ้างอิง: ${item.ID || item.id || '-'} | วันที่พิมพ์เอกสาร: ${printDateStr}</p>
       </div>
 
-      <table style="width:100%; border-collapse:collapse; margin-bottom:10px;">
+      <table style="margin-bottom: 12px;">
         <tr>
           <td width="68%" style="text-align:center; background-color:#f8fafc; padding:8px; border:1px solid #e2e8f0; border-radius:8px; vertical-align:middle;">
             <b style="font-size:11px; color:#334155;">📷 ภาพถ่ายจุดติดตั้งครุภัณฑ์ปัจจุบัน</b><br/><br/>
@@ -1818,109 +1807,60 @@ async function generateA4ReportPDFClient(equipId) {
         </tr>
       </table>
 
-      <div style="font-size:13px; font-weight:bold; color:#0f172a; margin-top:8px; margin-bottom:4px; border-left:4px solid #059669; padding-left:6px;">
-        📝 ข้อมูลผังทะเบียนคุณลักษณะครุภัณฑ์หลัก
-      </div>
-
-      <table style="width:100%; border-collapse:collapse; margin-bottom:10px; font-size:12px;">
-        <tr style="border-bottom:1px solid #f1f5f9;">
-          <td width="50%" style="padding:4px;">
-            <span style="font-size:10px; color:#64748b; font-weight:bold;">ดัชนีทรัพย์สิน</span><br/>
-            <b style="font-size:14px; color:#0f172a;">${item.ID || item.id || '-'}</b>
-          </td>
-          <td width="50%" style="padding:4px;">
-            <span style="font-size:10px; color:#64748b; font-weight:bold;">ประเภททรัพย์สิน</span><br/>
-            <span style="font-size:13px; color:#0f172a;">${item['ประเภททรัพย์สิน'] || item.type || '-'}</span>
-          </td>
+      <div class="section-title">📝 ข้อมูลผังทะเบียนคุณลักษณะครุภัณฑ์หลัก</div>
+      <table style="margin-bottom: 12px; font-size: 12px;">
+        <tr style="border-bottom: 1px solid #f1f5f9;">
+          <td width="50%" style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">ดัชนีทรัพย์สิน</span><br/><b style="font-size:14px; color:#0f172a;">${item.ID || item.id || '-'}</b></td>
+          <td width="50%" style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">ประเภททรัพย์สิน</span><br/><span style="font-size:13px; color:#0f172a;">${item['ประเภททรัพย์สิน'] || item.type || '-'}</span></td>
         </tr>
-        <tr style="border-bottom:1px solid #f1f5f9;">
-          <td style="padding:4px;">
-            <span style="font-size:10px; color:#64748b; font-weight:bold;">เลขทะเบียนทรัพย์สิน</span><br/>
-            <span style="font-size:13px; color:#0f172a;">${item['เลขทะเบียนทรัพย์สิน'] || item.assetNo || '-'}</span>
-          </td>
-          <td style="padding:4px;">
-            <span style="font-size:10px; color:#64748b; font-weight:bold;">ชื่อครุภัณฑ์ทรัพย์สิน</span><br/>
-            <b style="font-size:13px; color:#0f172a;">${item['ชื่อทรัพย์สิน'] || item.Name || item.name || '-'}</b>
-          </td>
+        <tr style="border-bottom: 1px solid #f1f5f9;">
+          <td style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">เลขทะเบียนทรัพย์สิน</span><br/><span style="font-size:13px; color:#0f172a;">${item['เลขทะเบียนทรัพย์สิน'] || item.assetNo || '-'}</span></td>
+          <td style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">ชื่อครุภัณฑ์ทรัพย์สิน</span><br/><b style="font-size:13px; color:#0f172a;">${item['ชื่อทรัพย์สิน'] || item.Name || item.name || '-'}</b></td>
         </tr>
-        <tr style="border-bottom:1px solid #f1f5f9;">
-          <td style="padding:4px;">
-            <span style="font-size:10px; color:#64748b; font-weight:bold;">หน่วยงานผู้รับผิดชอบ</span><br/>
-            <span style="font-size:13px; color:#0f172a;">${item['หน่วยงาน'] || item.department || '-'}</span>
-          </td>
-          <td style="padding:4px;">
-            <span style="font-size:10px; color:#64748b; font-weight:bold;">สถานที่ติดตั้งหลัก</span><br/>
-            <b style="font-size:13px; color:#065f46;">📍 ${item['ที่ตั้ง'] || item.location || '-'}</b>
-          </td>
+        <tr style="border-bottom: 1px solid #f1f5f9;">
+          <td style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">หน่วยงานผู้รับผิดชอบ</span><br/><span style="font-size:13px; color:#0f172a;">${item['หน่วยงาน'] || item.department || '-'}</span></td>
+          <td style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">สถานที่ติดตั้งหลัก</span><br/><b style="font-size:13px; color:#065f46;">📍 ${item['ที่ตั้ง'] || item.location || '-'}</b></td>
         </tr>
-        <tr style="border-bottom:1px solid #f1f5f9;">
-          <td style="padding:4px;">
-            <span style="font-size:10px; color:#64748b; font-weight:bold;">สถานะปัจจุบันในระบบ</span><br/>
-            <span style="font-size:13px; color:#0f172a;">${item.Status || item.status || '-'}</span>
-          </td>
-          <td style="padding:4px;">
-            <span style="font-size:10px; color:#64748b; font-weight:bold;">พิกัดแผนที่</span><br/>
-            <span style="font-size:12px; color:#0f172a;">ละติจูด ${item.Lat || item.lat || '0'} , ลองจิจูด ${item.Lng || item.lng || '0'}</span>
-          </td>
+        <tr style="border-bottom: 1px solid #f1f5f9;">
+          <td style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">สถานะปัจจุบันในระบบ</span><br/><span style="font-size:13px; color:#0f172a;">${item.Status || item.status || '-'}</span></td>
+          <td style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">พิกัดแผนที่</span><br/><span style="font-size:12px; color:#0f172a;">ละติจูด ${item.Lat || item.lat || '0'} , ลองจิจูด ${item.Lng || item.lng || '0'}</span></td>
         </tr>
         <tr>
-          <td colspan="2" style="padding:4px;">
-            <span style="font-size:10px; color:#64748b; font-weight:bold;">หมายเหตุเพิ่มเติม (Note)</span><br/>
-            <span style="font-size:12px; color:#334155;">${item.Note || item.note || '-'}</span>
-          </td>
+          <td colspan="2" style="padding:5px;"><span style="font-size:10px; color:#64748b; font-weight:bold;">หมายเหตุเพิ่มเติม (Note)</span><br/><span style="font-size:12px; color:#334155;">${item.Note || item.note || '-'}</span></td>
         </tr>
       </table>
 
-      <div style="font-size:13px; font-weight:bold; color:#0f172a; margin-top:8px; margin-bottom:4px; border-left:4px solid #059669; padding-left:6px;">
-        📜 บันทึกประวัติและไทม์ไลน์การแจ้งซ่อมบำรักษาย้อนหลัง
-      </div>
-
-      <div style="background-color:#fff1f2; padding:4px 8px; border:1px solid #fecdd3; border-radius:6px; margin-bottom:6px; font-size:11px; font-weight:bold; color:#9f1239;">
+      <div class="section-title">📜 บันทึกประวัติและไทม์ไลน์การแจ้งซ่อมบำรักษาย้อนหลัง</div>
+      <div style="background-color:#fff1f2; padding:5px 10px; border:1px solid #fecdd3; border-radius:6px; margin-bottom:8px; font-size:11px; font-weight:bold; color:#9f1239;">
         📊 จำนวนครั้งที่แจ้งชำรุดสะสมในฐานระบบ: <span style="color:#e11d48; font-size:13px;">${totalReports} ครั้ง</span>
       </div>
 
-      <table style="width:100%; border-collapse:collapse; font-size:11px;">
+      <table style="font-size:11px;">
         <thead>
           <tr style="background-color:#f1f5f9; color:#334155;">
-            <th width="18%" style="padding:5px; border:1px solid #cbd5e1; text-align:center;">วันที่ / เลขใบงาน</th>
-            <th width="52%" style="padding:5px; border:1px solid #cbd5e1; text-align:center;">รายละเอียดบันทึกกิจกรรมซ่อมบำรุง / วัสดุอุปกรณ์ที่ใช้</th>
-            <th width="15%" style="padding:5px; border:1px solid #cbd5e1; text-align:center;">สถานะใบงาน</th>
-            <th width="15%" style="padding:5px; border:1px solid #cbd5e1; text-align:center;">ผู้เกี่ยวข้อง</th>
+            <th width="18%" style="padding:6px; border:1px solid #cbd5e1; text-align:center;">วันที่ / เลขใบงาน</th>
+            <th width="52%" style="padding:6px; border:1px solid #cbd5e1; text-align:center;">รายละเอียดบันทึกกิจกรรมซ่อมบำรุง / วัสดุอุปกรณ์ที่ใช้</th>
+            <th width="15%" style="padding:6px; border:1px solid #cbd5e1; text-align:center;">สถานะใบงาน</th>
+            <th width="15%" style="padding:6px; border:1px solid #cbd5e1; text-align:center;">ผู้เกี่ยวข้อง</th>
           </tr>
         </thead>
         <tbody>
           ${historyRowsHtml}
         </tbody>
       </table>
-    `;
 
-    document.body.appendChild(reportContainer);
+      <script>
+        window.onload = function() {
+          setTimeout(function() {
+            window.print();
+          }, 500);
+        };
+      </script>
+    </body>
+    </html>
+  `);
 
-    // 🟢 รอให้รูปภาพโหลดเสร็จก่อนจับภาพลง PDF
-    const imgs = reportContainer.querySelectorAll('img');
-    const imgPromises = Array.from(imgs).map(img => {
-      if (img.complete) return Promise.resolve();
-      return new Promise(resolve => {
-        img.onload = resolve;
-        img.onerror = resolve;
-      });
-    });
-    await Promise.all(imgPromises);
-
-    const opt = {
-      margin:       [8, 8, 8, 8],
-      filename:     `Report_${equipId}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    await html2pdf().set(opt).from(reportContainer).save();
-    document.body.removeChild(reportContainer);
-    if (typeof showQuietAlert === 'function') showQuietAlert("✅ Export PDF รายงาน A4 สำเร็จเรียบร้อย");
-  } catch (err) {
-    if (typeof showQuietAlert === 'function') showQuietAlert("❌ สร้าง PDF A4 ไม่สำเร็จ: " + err.toString());
-  }
+  printWindow.document.close();
 }
 
 // =========================================================================
