@@ -2,6 +2,7 @@ let map = null, markersLayer = null, allData = [], markerDict = {};
 let isOfficer = false, isTechnician = false, isAdmin = false, currentDepartment = "";
 let currentActiveId = "", currentActiveItemRaw = null, bmaMaskLayer = null, bmaDistrictsLayer = null, bmaCachedGeoJSON = null;
 let successListGlobal = [], successListRaw = [], currentPage = 1, recordsPerPage = 25;
+let estimateListRaw = [];
 let masterFilteredList = [], currentMasterPage = 1, masterRecordsPerPage = 25;
 let masterDisplayList = []; 
 let globalReportCounts = {};
@@ -9,23 +10,16 @@ let currentUserCode = "";
 let indexRawData = [], indexFilteredData = [], indexHeaders = [];
 let compressedImageMap = {};
 
-// ==========================================
-// 🚀 Lifecycle Initializer
-// ==========================================
 document.addEventListener("DOMContentLoaded", function () {
   initMap();
   loadMarkers();
   loadIndexData();
 });
 
-// ==========================================
-// 🌐 API Helper Functions
-// ==========================================
 async function apiGet(action, params = {}) {
   const url = new URL(API_BASE_URL);
   url.searchParams.append('action', action);
   Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
-  
   const response = await fetch(url.toString(), { method: 'GET', mode: 'cors', redirect: 'follow' });
   if (!response.ok) throw new Error(`HTTP status ${response.status}`);
   return await response.json();
@@ -42,52 +36,30 @@ async function apiPost(action, data = {}) {
   return await response.json();
 }
 
-// ==========================================
-// 🗺️ Leaflet Map Initializer (Minimal & Ultra-Clean Satellite)
-// ==========================================
 function initMap() {
   try {
     const mapContainer = document.getElementById('map');
     if (!mapContainer || map) return;
 
     const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20,
-      attribution: '&copy; CartoDB'
+      maxZoom: 20, attribution: '&copy; CartoDB'
     });
-
     const satBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      attribution: '&copy; Esri World Imagery',
-      className: 'clean-satellite-tiles'
+      maxZoom: 19, attribution: '&copy; Esri World Imagery', className: 'clean-satellite-tiles'
     });
-
     const satRoads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      opacity: 0.75
+      maxZoom: 19, opacity: 0.75
     });
-
     const satLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20,
-      subdomains: 'abcd',
-      className: 'clean-satellite-labels'
+      maxZoom: 20, subdomains: 'abcd', className: 'clean-satellite-labels'
     });
-
     const cleanSatelliteLayer = L.layerGroup([satBase, satRoads, satLabels]);
 
-    map = L.map('map', {
-      center: [13.745, 100.62],
-      zoom: 11,
-      layers: [streetLayer]
-    });
-
+    map = L.map('map', { center: [13.745, 100.62], zoom: 11, layers: [streetLayer] });
     markersLayer = L.markerClusterGroup({ maxClusterRadius: 50, disableClusteringAtZoom: 17 });
     markersLayer.addTo(map);
 
-    L.control.layers({
-      "🗺️ แผนที่ถนน": streetLayer,
-      "🛰️ ภาพดาวเทียม (Minimal)": cleanSatelliteLayer
-    }, null, { position: 'topleft' }).addTo(map);
-
+    L.control.layers({ "🗺️ แผนที่ถนน": streetLayer, "🛰️ ภาพดาวเทียม (Minimal)": cleanSatelliteLayer }, null, { position: 'topleft' }).addTo(map);
     setTimeout(() => { map.invalidateSize(); }, 300);
   } catch (err) {
     console.error("Map initialization failed:", err);
@@ -148,7 +120,6 @@ function checkFeatureContainsDamaged(feature, damagedPoints) {
 
   for (let p = 0; p < damagedPoints.length; p++) {
     const pt = [damagedPoints[p].lat, damagedPoints[p].lng];
-
     if (geom.type === 'Polygon') {
       const poly = geom.coordinates[0].map(c => [c[1], c[0]]);
       if (isPointInPolygon(pt, poly)) return true;
@@ -166,12 +137,9 @@ function drawBMAData(data, targetLocName) {
   const damagedPoints = [];
   allData.forEach(item => {
     const st = (item.Status || item.status || '').toString().trim();
-    if (st === 'ชำรุด' && item.Lat && item.Lng) {
-      const lat = parseFloat(item.Lat);
-      const lng = parseFloat(item.Lng);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        damagedPoints.push({ lat: lat, lng: lng, id: item.ID });
-      }
+    if ((st === 'ชำรุด' || st === 'รอจัดจ้าง') && item.Lat && item.Lng) {
+      const lat = parseFloat(item.Lat), lng = parseFloat(item.Lng);
+      if (!isNaN(lat) && !isNaN(lng)) damagedPoints.push({ lat: lat, lng: lng });
     }
   });
 
@@ -196,64 +164,14 @@ function drawBMAData(data, targetLocName) {
       const isSelected = matchingDistrictName && dName.toString().includes(matchingDistrictName);
       const hasDamaged = checkFeatureContainsDamaged(feature, damagedPoints);
 
-      if (isSelected) {
-        return {
-          color: '#059669',
-          weight: 2.5,
-          fillColor: '#34d399',
-          fillOpacity: 0.15
-        };
-      }
-
-      if (hasDamaged) {
-        return {
-          color: '#e11d48',
-          weight: 2.0,
-          fillColor: '#0f172a',
-          fillOpacity: 0.35
-        };
-      }
-
-      return {
-        color: '#047857',
-        weight: 1.0,
-        fillColor: '#ffffff',
-        fillOpacity: 0.0
-      };
-    },
-    onEachFeature: function(feature, layer) {
-      const props = feature.properties || {};
-      let districtName = props.dname || props.dist_th || '';
-      if (districtName) {
-        if (!districtName.includes('เขต')) districtName = 'เขต' + districtName;
-        const hasDamaged = checkFeatureContainsDamaged(feature, damagedPoints);
-        
-        layer.on('click', function(e) {
-          L.popup()
-            .setLatLng(e.latlng)
-            .setContent(`
-              <div style="font-family:'Kanit',sans-serif; padding:4px;">
-                <div style="font-size:14px; font-weight:bold; color:#065f46;">📍 ${districtName}</div>
-                <div style="font-size:11px; margin-top:2px; color:${hasDamaged ? '#e11d48; font-weight:bold;' : '#64748b;'}">
-                  ${hasDamaged ? '⚠️ ตรวจพบครุภัณฑ์ชำรุดในพื้นที่' : '🟢 การทำงานปกติ'}
-                </div>
-              </div>
-            `)
-            .openOn(map);
-        });
-      }
+      if (isSelected) return { color: '#059669', weight: 2.5, fillColor: '#34d399', fillOpacity: 0.15 };
+      if (hasDamaged) return { color: '#e11d48', weight: 2.0, fillColor: '#0f172a', fillOpacity: 0.35 };
+      return { color: '#047857', weight: 1.0, fillColor: '#ffffff', fillOpacity: 0.0 };
     }
   }).addTo(map);
 
-  const worldOuterRing = [
-    [-90, -180],
-    [-90, 180],
-    [90, 180],
-    [90, -180]
-  ];
-  
+  const worldOuterRing = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
   const maskRings = [worldOuterRing];
-
   data.features.forEach(feature => {
     if (isTrashBox(feature)) return;
     const geom = feature.geometry;
@@ -264,17 +182,26 @@ function drawBMAData(data, targetLocName) {
     }
   });
 
-  bmaMaskLayer = L.polygon(maskRings, {
-    stroke: false,
-    fillColor: '#0f172a',
-    fillOpacity: 0.52,
-    interactive: false
-  }).addTo(map);
+  bmaMaskLayer = L.polygon(maskRings, { stroke: false, fillColor: '#0f172a', fillOpacity: 0.52, interactive: false }).addTo(map);
 }
 
-// ==========================================
-// 📊 Data Loading & Dynamic Dependent Filters
-// ==========================================
+// 🌟 สร้างหมุดแยกสีตามสถานะ: ปกติ=เขียว, ชำรุด=แดง, รอจัดจ้าง=เหลือง, รอจำหน่าย=ส้ม
+function createNumberedIcon(text, status) {
+  let borderColor = '#10b981', bgColor = '#ecfdf5', textColor = '#047857';
+  if (status === 'ชำรุด') { 
+    borderColor = '#ef4444'; bgColor = '#fef2f2'; textColor = '#dc2626'; 
+  } else if (status === 'รอจัดจ้าง') { 
+    borderColor = '#f59e0b'; bgColor = '#fffbeb'; textColor = '#b45309'; // 🌟 สีเหลืองทอง
+  } else if (status === 'รอจำหน่าย') { 
+    borderColor = '#f97316'; bgColor = '#fff7ed'; textColor = '#c2410c'; 
+  } else if (status === 'จำหน่ายแล้ว') { 
+    borderColor = '#6b7280'; bgColor = '#f3f4f6'; textColor = '#374151'; 
+  }
+  
+  const style = `background-color: ${bgColor}; border: 2.5px solid ${borderColor}; color: ${textColor}; border-radius: 8px; padding: 3px 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; box-shadow: 0 3px 8px rgba(0,0,0,0.25); white-space: nowrap;`;
+  return L.divIcon({ html: `<div style="${style}">${text}</div>`, iconSize: [85, 26], iconAnchor: [42, 13], className: 'custom-numbered-icon' });
+}
+
 async function loadMarkers(userCode) {
   if (userCode !== undefined) currentUserCode = userCode;
   showQuietAlert("⏳ กำลังเชื่อมต่อฐานข้อมูลคลังครุภัณฑ์...");
@@ -298,6 +225,7 @@ async function loadMarkers(userCode) {
           applyFilters();
           if (isTechnician) {
             renderDamagedTable();
+            renderEstimateTable(historyRes.data || []);
             loadAllRepairsHistory();
           }
         }
@@ -322,20 +250,11 @@ function processDataSequence(data) {
   return data;
 }
 
-function createNumberedIcon(text, status) {
-  let borderColor = '#10b981', bgColor = '#ecfdf5', textColor = '#047857';
-  if(status === 'ชำรุด') { borderColor = '#ef4444'; bgColor = '#fef2f2'; textColor = '#dc2626'; }
-  else if(status === 'รอจำหน่าย') { borderColor = '#f59e0b'; bgColor = '#fffbeb'; textColor = '#b45309'; }
-  else if(status === 'จำหน่ายแล้ว') { borderColor = '#6b7280'; bgColor = '#f3f4f6'; textColor = '#374151'; }
-  
-  const style = `background-color: ${bgColor}; border: 2.5px solid ${borderColor}; color: ${textColor}; border-radius: 8px; padding: 3px 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; box-shadow: 0 3px 8px rgba(0,0,0,0.25); white-space: nowrap;`;
-  return L.divIcon({ html: `<div style="${style}">${text}</div>`, iconSize: [85, 26], iconAnchor: [42, 13], className: 'custom-numbered-icon' });
-}
-
 function updateStatisticsCounters(data) {
   if (!data) return;
   const total = data.length;
   const damaged = data.filter(x => (x.Status || x.status || '').toString().trim() === 'ชำรุด').length;
+  const estimate = data.filter(x => (x.Status || x.status || '').toString().trim() === 'รอจัดจ้าง').length;
   const normal = data.filter(x => (x.Status || x.status || '').toString().trim() === 'ปกติ').length;
   const pending = data.filter(x => (x.Status || x.status || '').toString().trim() === 'รอจำหน่าย').length;
   const disposed = data.filter(x => (x.Status || x.status || '').toString().trim() === 'จำหน่ายแล้ว').length;
@@ -343,6 +262,7 @@ function updateStatisticsCounters(data) {
   document.getElementById('count_all').innerText = total;
   document.getElementById('count_normal').innerText = normal;
   document.getElementById('count_damaged').innerText = damaged;
+  document.getElementById('count_estimate').innerText = estimate;
   document.getElementById('count_pending').innerText = pending;
   document.getElementById('count_disposed').innerText = disposed;
 }
@@ -367,12 +287,7 @@ function initFilterDropdowns(data) {
 function updateLocationDropdownByDepartment(dept) {
   const lSelect = document.getElementById('locationFilter');
   if (!lSelect) return;
-
-  let filteredByDept = allData;
-  if (dept && dept !== 'all') {
-    filteredByDept = allData.filter(x => x['หน่วยงาน'] === dept);
-  }
-
+  let filteredByDept = (dept && dept !== 'all') ? allData.filter(x => x['หน่วยงาน'] === dept) : allData;
   const locs = [...new Set(filteredByDept.map(x => x['ที่ตั้ง']).filter(Boolean))];
   lSelect.innerHTML = '<option value="all">📍 ทุกสถานที่</option>';
   locs.forEach(l => lSelect.innerHTML += `<option value="${l}">${l}</option>`);
@@ -399,7 +314,7 @@ function applyFilters() {
   const newMarkers = [];
   markerDict = {};
 
-  let totalCount = 0, normalCount = 0, damagedCount = 0, pendingCount = 0, disposedCount = 0;
+  let totalCount = 0, normalCount = 0, damagedCount = 0, estimateCount = 0, pendingCount = 0, disposedCount = 0;
 
   if (allData && allData.length > 0) {
     allData.forEach(item => {
@@ -411,6 +326,7 @@ function applyFilters() {
       const currentSt = (item.Status || item.status || '').toString().trim();
       if (currentSt === 'ปกติ') normalCount++;
       else if (currentSt === 'ชำรุด') damagedCount++;
+      else if (currentSt === 'รอจัดจ้าง') estimateCount++;
       else if (currentSt === 'รอจำหน่าย') pendingCount++;
       else if (currentSt === 'จำหน่ายแล้ว') disposedCount++;
       
@@ -432,6 +348,7 @@ function applyFilters() {
   document.getElementById('count_all').innerText = totalCount;
   document.getElementById('count_normal').innerText = normalCount;
   document.getElementById('count_damaged').innerText = damagedCount;
+  document.getElementById('count_estimate').innerText = estimateCount;
   document.getElementById('count_pending').innerText = pendingCount;
   document.getElementById('count_disposed').innerText = disposedCount;
 
@@ -447,9 +364,6 @@ function applyFilters() {
   }
 }
 
-// ==========================================
-// 📋 Details Workspace Modal
-// ==========================================
 function openDetailsWorkspace(item) {
   currentActiveId = item.ID;
   currentActiveItemRaw = item;
@@ -486,9 +400,12 @@ function openDetailsWorkspace(item) {
   if (currentSt === 'ชำรุด') {
     badge.innerHTML = idCapsule + ' 🔴 ชำรุด';
     badge.className = 'text-sm font-bold px-2.5 py-1.5 rounded-xl bg-red-50 text-red-700 border border-red-200 flex items-center';
+  } else if (currentSt === 'รอจัดจ้าง') {
+    badge.innerHTML = idCapsule + ' 🟡 รอจัดจ้าง (ส่งประมาณราคา)';
+    badge.className = 'text-sm font-bold px-2.5 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-300 flex items-center';
   } else if (currentSt === 'รอจำหน่าย') {
     badge.innerHTML = idCapsule + ' ⏳ รอจำหน่าย';
-    badge.className = 'text-sm font-bold px-2.5 py-1.5 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center';
+    badge.className = 'text-sm font-bold px-2.5 py-1.5 rounded-xl bg-orange-50 text-orange-700 border border-orange-200 flex items-center';
   } else if (currentSt === 'จำหน่ายแล้ว') {
     badge.innerHTML = idCapsule + ' 📦 จำหน่ายแล้ว';
     badge.className = 'text-sm font-bold px-2.5 py-1.5 rounded-xl bg-gray-100 text-gray-700 border border-gray-300 flex items-center';
@@ -526,6 +443,9 @@ function openDetailsWorkspace(item) {
     } else if (currentSt === 'ชำรุด') {
       btnAction.innerText = isTechnician ? "🔧 ดำเนินการบันทึกรายงานผลการซ่อมบำรุง" : "🔴 อุปกรณ์ชำรุด (อยู่ระหว่างดำเนินการซ่อม)";
       btnAction.className = isTechnician ? "w-full text-slate-950 font-bold p-2.5 rounded-xl text-xs sm:text-sm shadow-md transition-all bg-amber-500 hover:bg-amber-600 block cursor-pointer text-center" : "w-full text-slate-500 font-bold p-2.5 rounded-xl text-xs sm:text-sm border bg-slate-100 cursor-not-allowed block text-center";
+    } else if (currentSt === 'รอจัดจ้าง') {
+      btnAction.innerText = (isOfficer || isTechnician) ? "📄 ดำเนินการปิดงานจัดจ้างตามสัญญา" : "🟡 อยู่ระหว่างขั้นตอนจัดซื้อจัดจ้าง";
+      btnAction.className = (isOfficer || isTechnician) ? "w-full text-white font-bold p-2.5 rounded-xl text-xs sm:text-sm shadow-md transition-all bg-amber-600 hover:bg-amber-700 block cursor-pointer text-center" : "w-full text-amber-800 font-bold p-2.5 rounded-xl text-xs sm:text-sm border bg-amber-50 cursor-not-allowed block text-center";
     } else {
       btnAction.innerText = "📦 ครุภัณฑ์ถูกจำหน่ายออกจากระบบ";
       btnAction.className = "w-full text-slate-400 font-bold p-2.5 rounded-xl text-xs sm:text-sm border bg-slate-50 cursor-not-allowed block text-center";
@@ -568,11 +488,11 @@ async function refreshHistoryView(equipId) {
       return parseDate(b.date) - parseDate(a.date);
     });
 
-    const activePending = filtered.find(h => h.status === 'รอดำเนินการ');
-    if (activePending && isTechnician) {
-      document.getElementById('techRepairId').value = activePending.repairId;
+    const activeTicket = filtered.find(h => h.status === 'รอดำเนินการ' || h.status === 'รอจัดจ้าง');
+    if (activeTicket) {
+      document.getElementById('techRepairId').value = activeTicket.repairId;
       const badge = document.getElementById('techRepairIdBadge');
-      badge.innerText = "📋 ดำเนินการปิดใบงาน: " + activePending.repairId;
+      badge.innerText = `📋 ดำเนินการใบงาน: ${activeTicket.repairId} (${activeTicket.status})`;
       badge.classList.remove('hidden');
     }
 
@@ -584,17 +504,23 @@ async function refreshHistoryView(equipId) {
     }
 
     let html = '';
-    filtered.forEach((h, i) => {
-      const isDone = h.status === 'ซ่อมเสร็จสิ้น';
+    filtered.forEach((h) => {
+      let statusStyle = 'text-emerald-700 bg-emerald-50 border-emerald-200 border-l-emerald-500';
+      if (h.status === 'ชำรุด' || h.status === 'รอดำเนินการ') {
+        statusStyle = 'text-rose-700 bg-rose-50 border-rose-200 border-l-rose-500';
+      } else if (h.status === 'รอจัดจ้าง') {
+        statusStyle = 'text-amber-800 bg-amber-50 border-amber-300 border-l-amber-500';
+      }
+
       html += `
-        <div class="bg-white border rounded-xl p-3 shadow-xs border-l-4 ${isDone ? 'border-l-emerald-500' : 'border-l-rose-500'} flex flex-col gap-2 w-full">
+        <div class="bg-white border rounded-xl p-3 shadow-xs border-l-4 ${statusStyle.split(' ')[3]} flex flex-col gap-2 w-full">
           <div class="flex justify-between items-start border-b pb-1.5">
             <div><span class="font-bold text-[11px] text-slate-800">📅 ใบงาน: [${h.repairId}]</span> <span class="text-[10px] text-slate-400">${h.date}</span></div>
-            <span class="px-2 py-0.5 rounded-full border text-[10px] font-bold ${isDone ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-rose-700 bg-rose-50 border-rose-200'}">${h.status}</span>
+            <span class="px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusStyle.split(' ').slice(0, 3).join(' ')}">${h.status}</span>
           </div>
-          <div class="text-[11px] text-slate-700 bg-slate-50 p-2 rounded-lg border">${h.details}</div>
+          <div class="text-[11px] text-slate-700 bg-slate-50 p-2 rounded-lg border whitespace-pre-line">${h.details}</div>
           <div class="text-[10px] text-slate-400">👤 ผู้เกี่ยวข้อง: ${h.reporter}</div>
-          ${h.imageAfter ? `<div class="text-right"><button type="button" onclick="openImageModal('${h.imageAfter}')" class="text-emerald-600 font-bold underline text-xs cursor-pointer">🔍 ดูภาพหลักฐาน</button></div>` : ''}
+          ${h.imageAfter ? `<div class="text-right"><button type="button" onclick="openImageModal('${h.imageAfter}')" class="text-emerald-600 font-bold underline text-xs cursor-pointer">🔍 ดูภาพ/เอกสารแนบ</button></div>` : ''}
         </div>
       `;
     });
@@ -613,12 +539,10 @@ function findAndOpenAsset(id) {
   }
 }
 
-// ==========================================
-// 🔧 Tech & Repair Forms Handler
-// ==========================================
 function toggleActionForm() {
   if (!currentActiveItemRaw) return;
   const currentSt = (currentActiveItemRaw.Status || currentActiveItemRaw.status || '').toString().trim();
+  
   if (currentSt === 'ปกติ' && (isOfficer || isTechnician)) {
     document.getElementById('repairFormContainer')?.classList.toggle('hidden');
   } else if (currentSt === 'ชำรุด' && isTechnician) {
@@ -628,6 +552,9 @@ function toggleActionForm() {
       document.getElementById('techActionType').value = 'ซ่อมแซมเอง';
       toggleTechActionFields();
     }
+  } else if (currentSt === 'รอจัดจ้าง' && (isOfficer || isTechnician)) {
+    // 🌟 เปิด Modal บันทึกปิดงานสัญญาจัดจ้าง
+    openProcurementModal(currentActiveItemRaw.ID);
   }
 }
 
@@ -712,10 +639,10 @@ async function handleTechSubmit(e) {
     assetId: document.getElementById('techEquipId').value,
     details: completeDetails,
     technicianName: document.getElementById('techName').value,
-    imageAfter: compressedImageMap['imageAfterFile'] ? compressedImageMap['imageAfterFile'].base64 : null
+    imageAfter: compressedImageMap['imageAfterFile'] || null
   };
 
-  showLoadingModal("🔧 กำลังบันทึกปิดงานซ่อม...", "ระบบกำลังประมวลผลรูปภาพและข้อมูล");
+  showLoadingModal("🔧 กำลังบันทึกผลงาน...", "ระบบกำลังประมวลผลรูปภาพและข้อมูล");
 
   try {
     const res = await apiPost('updateRepairStatus', data);
@@ -736,9 +663,98 @@ async function handleTechSubmit(e) {
   }
 }
 
-// ==========================================
-// 📑 Tables & Pagination Handler
-// ==========================================
+// 🌟 จัดการตารางงานส่งประมาณราคา (รอจัดจ้าง)
+function renderEstimateTable(historyData) {
+  const tbody = document.getElementById('estimateAssetsTableBody');
+  const container = document.getElementById('estimateAssetsContainer');
+  if (!tbody || !container) return;
+
+  estimateListRaw = (historyData || []).filter(h => h.status === 'รอจัดจ้าง');
+  document.getElementById('estimateCountBadge').innerText = estimateListRaw.length + " รายการ";
+
+  if (estimateListRaw.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400 font-medium">ไม่มีรายการส่งประมาณราคาคงค้าง</td></tr>';
+    container.classList.remove('hidden');
+    return;
+  }
+
+  let html = '';
+  estimateListRaw.forEach(item => {
+    const asset = allData.find(a => a.ID === item.assetId);
+    const loc = asset ? asset['ที่ตั้ง'] : '-';
+    html += `
+      <tr class="hover:bg-amber-50/40 border-b last:border-none">
+        <td class="p-2 text-center font-bold text-amber-900">${item.repairId}</td>
+        <td class="p-2 text-center font-bold text-slate-700">${item.assetId}</td>
+        <td class="p-2 text-slate-800 text-[11px] whitespace-pre-line">${item.details}</td>
+        <td class="p-2 text-emerald-800 font-medium">📍 ${loc}</td>
+        <td class="p-2 text-center">
+          <button onclick="openProcurementModal('${item.assetId}', '${item.repairId}')" class="bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1 rounded-md font-bold text-[11px] cursor-pointer shadow-2xs">
+            📄 ปิดงานจัดจ้าง
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = html;
+  container.classList.remove('hidden');
+}
+
+// 🌟 Modal จัดการปิดงานจัดจ้าง
+async function openProcurementModal(assetId, repairId) {
+  document.getElementById('proc_assetId').value = assetId;
+  let repId = repairId;
+  if (!repId) {
+    const history = await apiGet('getRepairHistory');
+    const ticket = (history.data || []).find(h => h.assetId === assetId && h.status === 'รอจัดจ้าง');
+    if (ticket) repId = ticket.repairId;
+  }
+  document.getElementById('proc_repairId').value = repId || '';
+  document.getElementById('proc_badge_info').innerText = `💡 ปิดงานครุภัณฑ์ ID: ${assetId} | ใบงาน: ${repId || '-'}`;
+  document.getElementById('procurementModal')?.classList.remove('hidden');
+}
+
+function closeProcurementModal() {
+  document.getElementById('procurementModal')?.classList.add('hidden');
+  document.getElementById('procurementForm').reset();
+  removeImagePreview('preview_proc_box', 'preview_proc', ['procCapture', 'procFile']);
+}
+
+async function handleProcurementSubmit(e) {
+  e.preventDefault();
+  const btn = document.getElementById('procSubmitBtn');
+  btn.disabled = true;
+
+  const data = {
+    repairId: document.getElementById('proc_repairId').value,
+    assetId: document.getElementById('proc_assetId').value,
+    contractNo: document.getElementById('proc_contractNo').value,
+    startDate: document.getElementById('proc_startDate').value,
+    endDate: document.getElementById('proc_endDate').value,
+    details: document.getElementById('proc_details').value,
+    officerName: document.getElementById('proc_officerName').value,
+    contractFile: compressedImageMap['procFile'] || null
+  };
+
+  showLoadingModal("📄 กำลังบันทึกปิดงานจัดจ้าง...", "กรุณารอสักครู่");
+
+  try {
+    const res = await apiPost('completeProcurement', data);
+    hideLoadingModal();
+    btn.disabled = false;
+    showQuietAlert(res.message);
+    if (res.success) {
+      closeProcurementModal();
+      closeModal();
+      loadMarkers();
+    }
+  } catch(err) {
+    hideLoadingModal();
+    btn.disabled = false;
+    showQuietAlert("❌ ปิดงานจัดจ้างล้มเหลว");
+  }
+}
+
 function renderDamagedTable() {
   const tbody = document.getElementById('damagedAssetsTableBody');
   if (!tbody) return;
@@ -786,19 +802,13 @@ function initSuccessDropdowns(data) {
   const depts = [...new Set(data.map(x => x.department).filter(Boolean))];
   sdSelect.innerHTML = '<option value="all">🏢 ทุกหน่วยงาน</option>';
   depts.forEach(d => sdSelect.innerHTML += `<option value="${d}">${d}</option>`);
-  
   updateSuccessLocationDropdown(sdSelect.value);
 }
 
 function updateSuccessLocationDropdown(dept) {
   const slSelect = document.getElementById('successLocFilter');
   if (!slSelect) return;
-
-  let filtered = successListRaw;
-  if (dept && dept !== 'all') {
-    filtered = successListRaw.filter(x => x.department === dept);
-  }
-
+  let filtered = (dept && dept !== 'all') ? successListRaw.filter(x => x.department === dept) : successListRaw;
   const locs = [...new Set(filtered.map(x => x.location).filter(Boolean))];
   slSelect.innerHTML = '<option value="all">📍 ทุกสถานที่</option>';
   locs.forEach(l => slSelect.innerHTML += `<option value="${l}">${l}</option>`);
@@ -860,7 +870,7 @@ function displaySuccessTableRecords() {
         <td class="p-2 text-center text-slate-600 font-medium">${h.date}<br/><b class="text-[10px] text-slate-400 font-bold">[${h.repairId}]</b></td>
         <td class="p-2 text-center font-bold text-slate-700">${h.assetId}</td>
         <td class="p-2 text-center"><span class="bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 rounded-full font-bold text-[11px]">${h.totalReports || 0} ครั้ง</span></td>
-        <td class="p-2"><div class="font-semibold text-slate-800">${h.details}</div><div class="text-[10px] text-slate-400">👤 ช่าง: ${h.reporter} | 🏢 ${h.department} (📍 ${h.location})</div></td>
+        <td class="p-2"><div class="font-semibold text-slate-800 whitespace-pre-line">${h.details}</div><div class="text-[10px] text-slate-400">👤 ช่าง/ผู้รับผิดชอบ: ${h.reporter} | 🏢 ${h.department} (📍 ${h.location})</div></td>
         <td class="p-2 text-center">${h.imageAfter ? `<button type="button" onclick="openImageModal('${h.imageAfter}')" class="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded border border-emerald-200 font-bold hover:bg-emerald-100 text-[11px] cursor-pointer">🔍 ดูภาพ</button>` : '<span class="text-slate-300 text-[11px]">ไม่มีภาพ</span>'}</td>
         <td class="p-2 text-center"><button type="button" onclick="findAndOpenAsset('${h.assetId}')" class="bg-emerald-600 hover:bg-emerald-700 text-white py-1 px-2.5 rounded-lg font-bold text-[11px] cursor-pointer">👁️ ดูข้อมูล</button></td>
       </tr>
@@ -904,7 +914,8 @@ function renderMasterInventoryTable() {
   records.forEach(item => {
     let st = '<span class="px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 rounded-full">🟢 ปกติ</span>';
     if(item.Status === 'ชำรุด') st = '<span class="px-2 py-0.5 text-[10px] font-bold bg-rose-50 text-rose-700 rounded-full">🔴 ชำรุด</span>';
-    else if(item.Status === 'รอจำหน่าย') st = '<span class="px-2 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-700 rounded-full">⏳ รอจำหน่าย</span>';
+    else if(item.Status === 'รอจัดจ้าง') st = '<span class="px-2 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-800 rounded-full">🟡 รอจัดจ้าง</span>';
+    else if(item.Status === 'รอจำหน่าย') st = '<span class="px-2 py-0.5 text-[10px] font-bold bg-orange-50 text-orange-700 rounded-full">⏳ รอจำหน่าย</span>';
     else if(item.Status === 'จำหน่ายแล้ว') st = '<span class="px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-700 rounded-full">📦 จำหน่ายแล้ว</span>';
 
     const count = globalReportCounts[item.ID] || 0;
@@ -926,9 +937,6 @@ function renderMasterInventoryTable() {
 
 function changeMasterPage(dir) { currentMasterPage += dir; renderMasterInventoryTable(); }
 
-// ==========================================
-// 📍 Index Sheet Popup Handler
-// ==========================================
 function openIndexModalWindow() { document.getElementById('indexModalWindow')?.classList.remove('hidden'); }
 function closeIndexModalWindow() { document.getElementById('indexModalWindow')?.classList.add('hidden'); }
 
@@ -973,9 +981,6 @@ function renderIndexTable() {
   tbody.innerHTML = html;
 }
 
-// ==========================================
-// ➕ Asset Add & Edit Modals Handler
-// ==========================================
 function openAddAssetModal() {
   if (!isOfficer) return;
   document.getElementById('addAssetModal')?.classList.remove('hidden');
@@ -1035,10 +1040,7 @@ async function handleFormSubmit(e) {
     btn.disabled = false;
     btn.innerText = "บันทึกข้อมูลเข้าฐานระบบ";
     showQuietAlert(res.message);
-    if (res.success) { 
-      closeAddAssetModal(); 
-      loadMarkers(); 
-    }
+    if (res.success) { closeAddAssetModal(); loadMarkers(); }
   } catch (err) {
     btn.disabled = false;
     showQuietAlert("❌ บันทึกล้มเหลว");
@@ -1092,13 +1094,9 @@ function getCurrentLocation() {
   }
 }
 
-// ==========================================
-// 📷 Native Mobile Camera & Image Handling
-// ==========================================
 function handleNativeImage(input, previewImgId, companionInputId) {
   if (input.files && input.files[0]) {
     const file = input.files[0];
-    
     compressImage(file, base64 => {
       const previewEl = document.getElementById(previewImgId);
       const previewBox = document.getElementById(previewImgId + '_box');
@@ -1124,7 +1122,6 @@ function removeImagePreview(boxId, imgId, inputIds) {
   document.getElementById(boxId)?.classList.add('hidden');
   const img = document.getElementById(imgId);
   if (img) img.src = '';
-  
   if (Array.isArray(inputIds)) {
     inputIds.forEach(id => {
       const el = document.getElementById(id);
@@ -1153,9 +1150,6 @@ function compressImage(file, callback) {
   };
 }
 
-// ==========================================
-// 📥 Export CSV & PDF Handlers
-// ==========================================
 function exportToCSV(filename, headers, rowsData, mapperFn) {
   if (!rowsData || rowsData.length === 0) {
     showQuietAlert("⚠️ ไม่มีข้อมูลสำหรับส่งออก CSV");
@@ -1205,9 +1199,6 @@ function downloadQRCode() {
   }
 }
 
-// ==========================================
-// 🔒 Auth & Layout Management
-// ==========================================
 function openAuthModal() { document.getElementById('authModal')?.classList.remove('hidden'); document.getElementById('officerPassword').focus(); }
 function closeAuthModal() { document.getElementById('authModal')?.classList.add('hidden'); document.getElementById('authForm').reset(); }
 
@@ -1237,6 +1228,7 @@ async function handleAuthSubmit(e) {
         document.getElementById('techSuccessBadge').innerText = "● " + res.dept;
         document.getElementById('techSuccessBadge').classList.remove('hidden');
         document.getElementById('damagedAssetsContainer').classList.remove('hidden');
+        document.getElementById('estimateAssetsContainer').classList.remove('hidden');
         document.getElementById('successAssetsContainer').classList.remove('hidden');
       }
 
@@ -1261,6 +1253,7 @@ function handleLogout() {
   document.getElementById('logoutBtn')?.classList.add('hidden');
   document.getElementById('authBtn')?.classList.remove('hidden');
   document.getElementById('damagedAssetsContainer')?.classList.add('hidden');
+  document.getElementById('estimateAssetsContainer')?.classList.add('hidden');
   document.getElementById('successAssetsContainer')?.classList.add('hidden');
   document.getElementById('masterInventoryContainer')?.classList.add('hidden');
 
