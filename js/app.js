@@ -687,67 +687,64 @@ function convertOklchToRgb(colorStr) {
 }
 
 // ==========================================
-// 📄 2. ฟังก์ชัน Export PDF ปุ่มสีแดง (คลี่การแสดงผลไทม์ไลน์ออกทั้งหมด)
+// 📄 3. ฟังก์ชัน Export PDF ปุ่มสีแดง (พิมพ์เฉพาะไทม์ไลน์ประวัติในรูปแบบ Native Print)
 // ==========================================
-// ==========================================
-// 📄 2. ฟังก์ชัน Export PDF ปุ่มสีแดง (คลี่การแสดงผลไทม์ไลน์ออกทั้งหมด)
-// ==========================================
-async function exportHistoryPDF(equipId) {
+function exportHistoryPDF(equipId) {
   const container = document.getElementById('wsRepairHistoryContainer');
   if (!container) {
     if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ ไม่พบพื้นที่ข้อมูลสำหรับออกเอกสาร PDF");
     return;
   }
 
-  if (typeof showQuietAlert === 'function') showQuietAlert("⏳ กำลังสร้างไฟล์ PDF ประวัติการบำรุงรักษา...");
-
-  // 🟢 Clone DOM และตั้งค่า opacity: 1 ป้องกันหน้าว่าง
-  const clonedElement = container.cloneNode(true);
-  clonedElement.style.maxHeight = 'none';
-  clonedElement.style.height = 'auto';
-  clonedElement.style.overflow = 'visible';
-  clonedElement.style.position = 'fixed';
-  clonedElement.style.top = '0';
-  clonedElement.style.left = '0';
-  clonedElement.style.zIndex = '-9999';
-  clonedElement.style.opacity = '1';
-  clonedElement.style.pointerEvents = 'none';
-  clonedElement.style.width = '750px';
-  clonedElement.style.backgroundColor = '#ffffff';
-
-  const btnInClone = clonedElement.querySelector('button');
-  if (btnInClone) btnInClone.style.display = 'none';
-
-  document.body.appendChild(clonedElement);
-
-  // 🟢 รอรูปภาพทั้งหมดใน clonedElement โหลดเสร็จ
-  const imgs = clonedElement.querySelectorAll('img');
-  const imgPromises = Array.from(imgs).map(img => {
-    if (img.complete) return Promise.resolve();
-    return new Promise(resolve => {
-      img.onload = resolve;
-      img.onerror = resolve;
-    });
-  });
-  await Promise.all(imgPromises);
-
-  const opt = {
-    margin:       [8, 8, 8, 8],
-    filename:     `ประวัติการซ่อมบำรุง_${equipId || 'Report'}.pdf`,
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
-    pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] },
-    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  };
-
-  try {
-    await html2pdf().set(opt).from(clonedElement).save();
-    document.body.removeChild(clonedElement);
-    if (typeof showQuietAlert === 'function') showQuietAlert("✅ Export PDF ประวัติสำเร็จเรียบร้อย");
-  } catch (err) {
-    if (document.body.contains(clonedElement)) document.body.removeChild(clonedElement);
-    if (typeof showQuietAlert === 'function') showQuietAlert("❌ ออก PDF ไม่สำเร็จ: " + err.toString());
+  // 🟢 เปิด window ทันทีเพื่อป้องกัน Pop-up Blocker
+  const printWindow = window.open('', '_blank', 'width=900,height=1000');
+  if (!printWindow) {
+    if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ กรุณาอนุญาต Pop-up ในเบราว์เซอร์เพื่อเปิดหน้าพิมพ์");
+    return;
   }
+
+  // คัดลอก DOM ประวัติไทม์ไลน์พร้อมลบปุ่ม Export ด้านในออก
+  const cloned = container.cloneNode(true);
+  const btnInClone = cloned.querySelector('button');
+  if (btnInClone) btnInClone.remove();
+
+  printWindow.document.open();
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html lang="th">
+    <head>
+      <meta charset="UTF-8">
+      <title>ประวัติการซ่อมบำรุง_${equipId || 'Report'}</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+      <script src="https://unpkg.com/@phosphor-icons/web"></script>
+      <style>
+        @page { size: A4 portrait; margin: 12mm; }
+        body { font-family: "Sarabun", "Garuda", Tahoma, sans-serif; background: #fff; padding: 10px; }
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      </style>
+    </head>
+    <body class="antialiased">
+      <div class="mb-4 border-b pb-2 text-center">
+        <h2 class="text-lg font-bold text-slate-800">📜 บันทึกไทม์ไลน์ประวัติการบำรุงรักษา</h2>
+        <p class="text-xs text-slate-500">รหัสครุภัณฑ์: ${equipId || '-'} | พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH')}</p>
+      </div>
+      <div>
+        ${cloned.innerHTML}
+      </div>
+      <script>
+        window.onload = function() {
+          setTimeout(function() {
+            window.print();
+          }, 600);
+        };
+      </script>
+    </body>
+    </html>
+  `);
+
+  printWindow.document.close();
 }
 
 // ==========================================
@@ -1669,7 +1666,7 @@ function generatePdfReport(equipId) {
 }
 
 // ==========================================
-// 📄 1. ฟังก์ชันปุ่ม Export PDF (เปลี่ยนเป็นระบบ Native Print A4)
+// 📄 1. ฟังก์ชันปุ่ม Export PDF (A4) - เปิด Window ทันทีเพื่อแก้ Pop-up Block
 // ==========================================
 function triggerExportPDF() {
   const targetId = currentActiveId || (currentActiveItemRaw ? currentActiveItemRaw.ID : null);
@@ -1677,13 +1674,23 @@ function triggerExportPDF() {
     if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ ไม่พบรหัสครุภัณฑ์สำหรับสร้างรายงาน");
     return;
   }
-  generateA4ReportPDFClient(targetId);
+
+  // 🟢 เปิด window ทันทีที่คลิก เพื่อป้องกัน Pop-up Blocker บล็อกหน้าต่าง
+  const printWindow = window.open('', '_blank', 'width=900,height=1000');
+  if (!printWindow) {
+    if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ กรุณาอนุญาต Pop-up ในเบราว์เซอร์เพื่อเปิดหน้าพิมพ์");
+    return;
+  }
+  
+  printWindow.document.write("<!DOCTYPE html><html><head><title>กำลังเตรียมรายงาน...</title></head><body style='font-family:sans-serif;text-align:center;padding-top:60px;color:#475569;'><h3>⏳ กำลังโหลดข้อมูลรายงานและเตรียมหน้าเอกสาร...</h3></body></html>");
+
+  generateA4ReportPDFClient(targetId, printWindow);
 }
 
 // ==========================================
-// 📄 2. ฟังก์ชันสร้างหน้าเอกสารพร้อมสั่งพิมพ์/บันทึกเป็น PDF (Print Window)
+// 📄 2. ฟังก์ชันสร้างหน้าเอกสารรายงาน A4 ฉบับเต็ม (Print Window Mode)
 // ==========================================
-async function generateA4ReportPDFClient(equipId) {
+async function generateA4ReportPDFClient(equipId, printWindow) {
   const allAssets = (typeof allData !== 'undefined' && allData.length > 0) ? allData : (window.allAssetsData || []);
   let item = allAssets.find(x => x && (x.ID || x.id || '').toString().trim().toUpperCase() === equipId.toString().trim().toUpperCase());
 
@@ -1692,11 +1699,10 @@ async function generateA4ReportPDFClient(equipId) {
   }
 
   if (!item) {
+    if (printWindow) printWindow.close();
     if (typeof showQuietAlert === 'function') showQuietAlert("⚠️ ไม่พบข้อมูลครุภัณฑ์สำหรับสร้างรายงาน");
     return;
   }
-
-  if (typeof showQuietAlert === 'function') showQuietAlert("⏳ กำลังเตรียมหน้าเอกสารสำหรับสั่งพิมพ์ / บันทึก PDF...");
 
   // ดึงประวัติการแจ้งซ่อม
   let historyList = [];
@@ -1767,9 +1773,7 @@ async function generateA4ReportPDFClient(equipId) {
   const qrImgTag = (qrImgSrc && !qrImgSrc.includes('data:,')) ? `<img src="${qrImgSrc}" style="max-height:130px; max-width:100%; object-fit:contain; border-radius:6px;"/>` : '<p style="color:#94a3b8; font-size:11px;">(ไม่มี QR Code)</p>';
   const printDateStr = new Date().toLocaleDateString('th-TH');
 
-  // เปิดหน้าต่างใหม่เพื่อ Render เอกสารแบบพร้อมพิมพ์ทันที
-  const printWindow = window.open('', '_blank', 'width=900,height=1000');
-  
+  printWindow.document.open();
   printWindow.document.write(`
     <!DOCTYPE html>
     <html lang="th">
