@@ -353,6 +353,9 @@
               <div id="wsDetailsGrid" class="space-y-2 text-slate-600"></div>
             </div>
 
+            <!-- 🟢 ส่วนแสดงและปรับแต่งข้อมูลเทคนิควิศวกรรมเฉพาะสำหรับ Admin & Tech -->
+            <div id="wsTechSpecsContainer"></div>
+
             <div class="bg-slate-50 border border-slate-200 p-3.5 rounded-xl shadow-2xs space-y-2.5">
               <div class="flex justify-between items-center w-full border-b border-slate-200 pb-2">
                 <h5 class="font-bold text-slate-800 flex items-center gap-1 text-xs">
@@ -440,7 +443,7 @@
                 
                 <div>
                   <label class="block text-slate-600 font-bold mb-1 text-[11px]">รายละเอียดผลดำเนินการซ่อมบำรุง / รายละเอียดประมาณราคา</label>
-                  <input type="text" id="techDetails" required placeholder="ระบุอาการและผลการจัดการหน้างานอย่างละเอียด" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500 text-xs">
+                  <input type="text" id="techDetails" required placeholder="ระบุอาการและผลการจัดการหน้างานอย่างรายละเอียด" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500 text-xs">
                 </div>
                 
                 <div id="techMaterialsWrapper" class="space-y-2 border p-3 rounded-xl bg-slate-100/80 border-slate-200 shadow-inner">
@@ -529,6 +532,30 @@
             </select>
           </div>
         </div>
+
+        <!-- 🟢 ฟิลด์ข้อมูลเทคนิควิศวกรรมสำหรับ นำเข้าครุภัณฑ์ -->
+        <div class="bg-sky-50/60 p-3.5 rounded-xl border border-sky-200 space-y-3">
+          <h4 class="font-bold text-sky-900 flex items-center gap-1 border-b border-sky-200 pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-lightning text-sky-700 text-base"></i> ข้อมูลเทคนิควิศวกรรมเฉพาะ (สำหรับ Admin & Tech)</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-600 font-medium mb-1">ตู้ควบคุม / เบรกเกอร์</label>
+              <input type="text" name="controlBox" placeholder="เช่น 30A 2P Cutout" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-medium mb-1">หลอดไฟที่ติดตั้ง</label>
+              <input type="text" name="lampType" placeholder="เช่น LED Highbay 150W" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-medium mb-1">ขนาดสายไฟ</label>
+              <input type="text" name="wireSize" placeholder="เช่น NYY 2x2.5 sq.mm" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-medium mb-1">อื่นๆ ระบุ</label>
+              <input type="text" name="extraTech" placeholder="ระบุเพิ่มเติม..." class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+          </div>
+        </div>
+
         <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-3">
           <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-buildings text-emerald-600 text-base"></i> 2. หน่วยงานและพื้นที่จัดเก็บข้อมูล</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -652,6 +679,30 @@
             </select>
           </div>
         </div>
+
+        <!-- 🟢 ฟิลด์ข้อมูลเทคนิควิศวกรรมสำหรับ แก้ไขครุภัณฑ์ -->
+        <div class="bg-sky-50/60 p-3.5 rounded-xl border border-sky-200 space-y-3">
+          <h4 class="font-bold text-sky-900 flex items-center gap-1 border-b border-sky-200 pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-lightning text-sky-700 text-base"></i> ข้อมูลเทคนิควิศวกรรมเฉพาะ (สำหรับ Admin & Tech)</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-600 font-medium mb-1">ตู้ควบคุม / เบรกเกอร์</label>
+              <input type="text" id="edit_controlBox" placeholder="เช่น 30A 2P Cutout" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-medium mb-1">หลอดไฟที่ติดตั้ง</label>
+              <input type="text" id="edit_lampType" placeholder="เช่น LED Highbay 150W" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-medium mb-1">ขนาดสายไฟ</label>
+              <input type="text" id="edit_wireSize" placeholder="เช่น NYY 2x2.5 sq.mm" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-medium mb-1">อื่นๆ ระบุ</label>
+              <input type="text" id="edit_extraTech" placeholder="ระบุเพิ่มเติม..." class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:outline-emerald-500">
+            </div>
+          </div>
+        </div>
+
         <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 space-y-3">
           <h4 class="font-bold text-slate-700 flex items-center gap-1 border-b pb-1.5 mb-1 text-[13px]"><i class="ph-bold ph-buildings text-slate-600 text-base"></i> 2. หน่วยงานและพื้นที่จัดเก็บข้อมูล</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
