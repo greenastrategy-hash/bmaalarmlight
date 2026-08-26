@@ -669,7 +669,7 @@ async function refreshHistoryView(equipId) {
 }
 
 // ==========================================
-// 📄 2. ฟังก์ชัน Export PDF ประวัติไทม์ไลน์ - แก้ปัญหาสี OKLCH (Tailwind v4)
+// 📄 ฟังก์ชัน Export PDF (แก้ปัญหาสี oklch Tailwind v4 ถาวร)
 // ==========================================
 function exportHistoryPDF(equipId) {
   const element = document.getElementById('wsRepairHistoryContainer') || document.getElementById('pdfPrintArea');
@@ -688,25 +688,28 @@ function exportHistoryPDF(equipId) {
       scale: 2, 
       useCORS: true, 
       logging: false,
-      // 🛠️ แก้ปัญหา oklch: ทำการลบ/แปลงค่าสีก่อนจับภาพส่งออก PDF
-      onclone: (clonedDocument) => {
-        const clonedElement = clonedDocument.getElementById('wsRepairHistoryContainer') || clonedDocument.getElementById('pdfPrintArea');
-        if (clonedElement) {
-          const allNodes = clonedElement.querySelectorAll('*');
-          allNodes.forEach(node => {
-            // ลบ Class ของ Tailwind ที่มักสร้างค่าสี oklch
-            node.style.color = window.getComputedStyle(node).color;
+      // 🛠️ ล้างค่าสี oklch ใน DOM ต้นฉบับที่โคลนมาทั้งหมดแบบ Recursive
+      onclone: (clonedDoc) => {
+        const clonedTarget = clonedDoc.getElementById('wsRepairHistoryContainer') || clonedDoc.getElementById('pdfPrintArea');
+        if (clonedTarget) {
+          const allElements = clonedTarget.querySelectorAll('*');
+          allElements.forEach(el => {
+            // ดึง Inline style attribute ออกมาตรวจ
+            let styleAttr = el.getAttribute('style') || '';
+            if (styleAttr.includes('oklch')) {
+              // ลบส่วนที่เป็น oklch ออกจาก inline style
+              styleAttr = styleAttr.replace(/oklch\([^)]+\)/g, '#1e293b');
+              el.setAttribute('style', styleAttr);
+            }
+
+            // บังคับเปลี่ยนสีพื้นฐานให้อยู่ในรูป Hex / RGB ป้องกัน CSS class จาก Tailwind v4
+            const comp = window.getComputedStyle(el);
+            if (comp.color.includes('oklch')) el.style.color = '#1e293b';
+            if (comp.backgroundColor.includes('oklch')) el.style.backgroundColor = '#ffffff';
+            if (comp.borderColor.includes('oklch')) el.style.borderColor = '#cbd5e1';
             
-            // กรองและกวาดล้างค่าสี oklch ออกจาก Style Inline
-            ['color', 'backgroundColor', 'borderColor', 'outlineColor'].forEach(prop => {
-              const val = node.style[prop] || '';
-              if (val.includes('oklch')) {
-                if (prop === 'color') node.style[prop] = '#1e293b';
-                else if (prop === 'backgroundColor') node.style[prop] = '#ffffff';
-                else if (prop === 'borderColor') node.style[prop] = '#cbd5e1';
-                else node.style[prop] = 'transparent';
-              }
-            });
+            // ป้องกัน Shadow / Ring สี oklch ใน Tailwind v4
+            el.style.boxShadow = 'none';
           });
         }
       }
