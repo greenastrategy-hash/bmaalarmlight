@@ -263,7 +263,48 @@ function initMap() {
     const satRoads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19, opacity: 0.75
     });
-    const satLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
+    const satLabels = L.tileLayer('https://{s}.function initMap() {
+  try {
+    const mapContainer = document.getElementById('map');
+    if (!mapContainer || map) return;
+
+    // 🟢 1. เปลี่ยนแผนที่ถนนหลักเป็น OpenStreetMap (ฟรี ไม่ติด API Key / ไม่มีลายน้ำ)
+    const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, 
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    });
+
+    // 🛰️ 2. ภาพดาวเทียมหลัก (Esri World Imagery)
+    const satBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, 
+      attribution: '&copy; Esri World Imagery', 
+      className: 'clean-satellite-tiles'
+    });
+
+    // 🛣️ 3. เส้นทางถนนซ้อนทับภาพดาวเทียม (Esri Transportation)
+    const satRoads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, 
+      opacity: 0.75
+    });
+
+    // 🟢 4. เปลี่ยน Label ชื่อสถานที่ซ้อนทับดาวเทียมเป็น Esri Boundaries & Places (ปลด CartoDB ออกทั้งระบบ)
+    const satLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, 
+      className: 'clean-satellite-labels'
+    });
+
+    const cleanSatelliteLayer = L.layerGroup([satBase, satRoads, satLabels]);
+
+    map = L.map('map', { center: [13.745, 100.62], zoom: 11, layers: [streetLayer] });
+    markersLayer = L.markerClusterGroup({ maxClusterRadius: 50, disableClusteringAtZoom: 17 });
+    markersLayer.addTo(map);
+
+    L.control.layers({ "🗺️ แผนที่ถนน": streetLayer, "🛰️ ภาพดาวเทียม (Minimal)": cleanSatelliteLayer }, null, { position: 'topleft' }).addTo(map);
+    setTimeout(() => { map.invalidateSize(); }, 300);
+  } catch (err) {
+    console.error("Map initialization failed:", err);
+  }
+}/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
       maxZoom: 20, subdomains: 'abcd', className: 'clean-satellite-labels'
     });
     const cleanSatelliteLayer = L.layerGroup([satBase, satRoads, satLabels]);
