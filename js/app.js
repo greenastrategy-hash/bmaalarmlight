@@ -102,11 +102,19 @@ function renderTechSpecsSection(item) {
   const container = document.getElementById('wsTechSpecsContainer');
   if (!container) return;
 
-  // 🔒 ตรวจสอบสิทธิ์ (ต้องล็อกอินและเป็น Admin หรือ Technician เท่านั้นจึงจะเห็นปุ่มแก้ไข)
-  const role = window.userRole || sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || '';
-  const canEditTech = (typeof isAdmin !== 'undefined' && isAdmin) ||
-                      (typeof isTechnician !== 'undefined' && isTechnician) ||
-                      (role === 'admin' || role === 'technician');
+  // 1. ตรวจสอบสถานะการเข้าสู่ระบบในปัจจุบัน (ต้องมีการล็อกอินสำเร็จแล้วเท่านั้น)
+  const isLoggedIn = (typeof isOfficer !== 'undefined' && isOfficer) || 
+                     (typeof isTechnician !== 'undefined' && isTechnician) || 
+                     (typeof isAdmin !== 'undefined' && isAdmin);
+
+  // 2. ตรวจสอบบทบาทสิทธิ์ (ต้องเป็น Admin หรือ Technician เท่านั้น)
+  const currentRole = (window.userRole || sessionStorage.getItem('userRole') || '').toString().toLowerCase().trim();
+  
+  const canEditTech = isLoggedIn && (
+    (typeof isAdmin !== 'undefined' && isAdmin === true) ||
+    (typeof isTechnician !== 'undefined' && isTechnician === true) ||
+    (currentRole === 'admin' || currentRole === 'technician')
+  );
 
   // ดึงข้อมูลเทคนิค
   const cBox = getTechValue(item, ['ตู้ควบคุม_เบรกเกอร์', 'ตู้ควบคุม/เบรกเกอร์', 'controlBox', 'ตู้ควบคุม']);
@@ -119,14 +127,13 @@ function renderTechSpecsSection(item) {
   const safeWSize = String(wSize).replace(/"/g, '&quot;');
   const safeETech = String(eTech).replace(/"/g, '&quot;');
 
-  // 🟢 1. ปุ่มบันทึก/แก้ไขข้อมูลเทคนิค (แสดงเฉพาะเมื่อล็อกอินมีสิทธิ์ Admin/Technician)
+  // 🟢 ปุ่มและฟอร์มจะถูกสร้างขึ้นเฉพาะเมื่อล็อกอินสำเร็จและมีสิทธิ์ Admin/Technician เท่านั้น
   const editButtonHtml = canEditTech ? `
     <button type="button" onclick="toggleTechEditForm('${item.ID}')" class="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg text-[11px] transition shadow-xs cursor-pointer">
       ✏️ บันทึก/แก้ไขข้อมูลเทคนิค
     </button>
   ` : '';
 
-  // 🟢 2. ฟอร์มแก้ไขข้อมูลเทคนิค (แสดงเฉพาะเมื่อล็อกอินมีสิทธิ์ Admin/Technician)
   const editFormHtml = canEditTech ? `
     <form id="techEditForm_${item.ID}" class="hidden space-y-2.5 mt-2 pt-2 border-t border-sky-200/80" onsubmit="submitTechSpecs(event, '${item.ID}')">
       <div class="grid grid-cols-2 gap-2">
@@ -164,7 +171,7 @@ function renderTechSpecsSection(item) {
         ${editButtonHtml}
       </div>
 
-      <!-- แสดงข้อมูลอ่านอย่างเดียวสำหรับผู้ใช้ทุกคน -->
+      <!-- แสดงข้อมูลอ่านอย่างเดียวสำหรับผู้ใช้งานทั่วไป -->
       <div id="techDisplayView_${item.ID}" class="grid grid-cols-2 gap-x-3 gap-y-2.5 text-slate-700">
         <div class="bg-white/60 p-1.5 rounded-lg border border-sky-100">
           <span class="block text-slate-500 font-semibold text-[11px]">🗄️ ตู้ควบคุม / เบรกเกอร์</span>
