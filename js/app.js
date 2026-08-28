@@ -102,19 +102,13 @@ function renderTechSpecsSection(item) {
   const container = document.getElementById('wsTechSpecsContainer');
   if (!container) return;
 
-  // 🔒 ตรวจสอบสิทธิ์ผู้ใช้งาน (Admin & Technician)
+  // 🔒 ตรวจสอบสิทธิ์ (ต้องล็อกอินและเป็น Admin หรือ Technician เท่านั้นจึงจะเห็นปุ่มแก้ไข)
   const role = window.userRole || sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || '';
-  const isAuthorized = (typeof isAdmin !== 'undefined' && isAdmin) ||
-                       (typeof isTechnician !== 'undefined' && isTechnician) ||
-                       (role === 'admin' || role === 'technician');
+  const canEditTech = (typeof isAdmin !== 'undefined' && isAdmin) ||
+                      (typeof isTechnician !== 'undefined' && isTechnician) ||
+                      (role === 'admin' || role === 'technician');
 
-  if (!isAuthorized) {
-    container.classList.add('hidden');
-    container.innerHTML = '';
-    return;
-  }
-
-  // 🟢 ดึงข้อมูลด้วย getTechValue รองรับทั้งตู้ควบคุม_เบรกเกอร์ และ ตู้ควบคุม/เบรกเกอร์
+  // ดึงข้อมูลเทคนิค
   const cBox = getTechValue(item, ['ตู้ควบคุม_เบรกเกอร์', 'ตู้ควบคุม/เบรกเกอร์', 'controlBox', 'ตู้ควบคุม']);
   const lType = getTechValue(item, ['หลอดไฟที่ติดตั้ง', 'lampType', 'หลอดไฟ']);
   const wSize = getTechValue(item, ['ขนาดสายไฟ', 'wireSize']);
@@ -125,19 +119,52 @@ function renderTechSpecsSection(item) {
   const safeWSize = String(wSize).replace(/"/g, '&quot;');
   const safeETech = String(eTech).replace(/"/g, '&quot;');
 
+  // 🟢 1. ปุ่มบันทึก/แก้ไขข้อมูลเทคนิค (แสดงเฉพาะเมื่อล็อกอินมีสิทธิ์ Admin/Technician)
+  const editButtonHtml = canEditTech ? `
+    <button type="button" onclick="toggleTechEditForm('${item.ID}')" class="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg text-[11px] transition shadow-xs cursor-pointer">
+      ✏️ บันทึก/แก้ไขข้อมูลเทคนิค
+    </button>
+  ` : '';
+
+  // 🟢 2. ฟอร์มแก้ไขข้อมูลเทคนิค (แสดงเฉพาะเมื่อล็อกอินมีสิทธิ์ Admin/Technician)
+  const editFormHtml = canEditTech ? `
+    <form id="techEditForm_${item.ID}" class="hidden space-y-2.5 mt-2 pt-2 border-t border-sky-200/80" onsubmit="submitTechSpecs(event, '${item.ID}')">
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1">ตู้ควบคุม / เบรกเกอร์</label>
+          <input type="text" id="inputControlBox_${item.ID}" value="${safeCBox}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น DB-2">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1">หลอดไฟที่ติดตั้ง</label>
+          <input type="text" id="inputLampType_${item.ID}" value="${safeLType}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น LED 18 วัตต์">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1">ขนาดสายไฟ</label>
+          <input type="text" id="inputWireSize_${item.ID}" value="${safeWSize}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น 2x2.5 sq.mm">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1">อื่นๆ ระบุ</label>
+          <input type="text" id="inputExtraTech_${item.ID}" value="${safeETech}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="ระบุเพิ่มเติม...">
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" onclick="toggleTechEditForm('${item.ID}')" class="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-medium cursor-pointer">ยกเลิก</button>
+        <button type="submit" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-xs shadow-xs cursor-pointer">💾 บันทึกข้อมูลเทคนิค</button>
+      </div>
+    </form>
+  ` : '';
+
   container.classList.remove('hidden');
   container.innerHTML = `
     <div class="mt-3 p-3 bg-sky-50/80 border border-sky-200 rounded-xl text-xs shadow-xs">
       <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-sky-200/80">
         <span class="font-bold text-sky-900 flex items-center gap-1">
-          ⚡ ข้อมูลเทคนิคเฉพาะ (สิทธิ์ Admin & Technician)
+          ⚡ ข้อมูลเทคนิคเฉพาะ ${canEditTech ? '(สิทธิ์ Admin & Technician)' : ''}
         </span>
-        <button type="button" onclick="toggleTechEditForm('${item.ID}')" class="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg text-[11px] transition shadow-xs cursor-pointer">
-          ✏️ บันทึก/แก้ไขข้อมูลเทคนิค
-        </button>
+        ${editButtonHtml}
       </div>
 
-      <!-- แสดงข้อมูลในหน้าต่างรายละเอียด -->
+      <!-- แสดงข้อมูลอ่านอย่างเดียวสำหรับผู้ใช้ทุกคน -->
       <div id="techDisplayView_${item.ID}" class="grid grid-cols-2 gap-x-3 gap-y-2.5 text-slate-700">
         <div class="bg-white/60 p-1.5 rounded-lg border border-sky-100">
           <span class="block text-slate-500 font-semibold text-[11px]">🗄️ ตู้ควบคุม / เบรกเกอร์</span>
@@ -157,31 +184,7 @@ function renderTechSpecsSection(item) {
         </div>
       </div>
 
-      <!-- ฟอร์มแก้ไขข้อมูลเทคนิค -->
-      <form id="techEditForm_${item.ID}" class="hidden space-y-2.5 mt-2 pt-2 border-t border-sky-200/80" onsubmit="submitTechSpecs(event, '${item.ID}')">
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block text-[11px] font-semibold text-slate-600 mb-1">ตู้ควบคุม / เบรกเกอร์</label>
-            <input type="text" id="inputControlBox_${item.ID}" value="${safeCBox}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น DB-2">
-          </div>
-          <div>
-            <label class="block text-[11px] font-semibold text-slate-600 mb-1">หลอดไฟที่ติดตั้ง</label>
-            <input type="text" id="inputLampType_${item.ID}" value="${safeLType}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น LED 18 วัตต์">
-          </div>
-          <div>
-            <label class="block text-[11px] font-semibold text-slate-600 mb-1">ขนาดสายไฟ</label>
-            <input type="text" id="inputWireSize_${item.ID}" value="${safeWSize}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น 2x2.5 sq.mm">
-          </div>
-          <div>
-            <label class="block text-[11px] font-semibold text-slate-600 mb-1">อื่นๆ ระบุ</label>
-            <input type="text" id="inputExtraTech_${item.ID}" value="${safeETech}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="ระบุเพิ่มเติม...">
-          </div>
-        </div>
-        <div class="flex justify-end gap-2 pt-1">
-          <button type="button" onclick="toggleTechEditForm('${item.ID}')" class="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-medium cursor-pointer">ยกเลิก</button>
-          <button type="submit" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-xs shadow-xs cursor-pointer">💾 บันทึกข้อมูลเทคนิค</button>
-        </div>
-      </form>
+      ${editFormHtml}
     </div>
   `;
 }
@@ -1746,18 +1749,37 @@ async function handleAuthSubmit(e) {
   }
 }
 
+// ==========================================
+// 🔒 ฟังก์ชันออกจากระบบ (ล้างสิทธิ์ User Role ทั้งหมด)
+// ==========================================
 function handleLogout() {
-  isOfficer = false; isTechnician = false; isAdmin = false; currentDepartment = ""; currentUserCode = "";
+  // 1. รีเซ็ตสถานะสิทธิ์ในระบบ
+  isOfficer = false;
+  isTechnician = false;
+  isAdmin = false;
+  currentDepartment = "";
+  currentUserCode = "";
+
+  // 🟢 ล้างสิทธิ์ userRole ทั้งใน Memory, Session, และ Local Storage
+  // เพื่อสั่งซ่อนปุ่มและฟอร์มแก้ไขข้อมูลเทคนิคทันทีที่กดออกจากระบบ
+  window.userRole = "";
+  sessionStorage.removeItem('userRole');
+  localStorage.removeItem('userRole');
+
+  // 2. ซ่อน Badge แสดงสิทธิ์และปุ่มที่เกี่ยวข้องกับเจ้าหน้าที่/ช่าง
   document.getElementById('authSuccessBadge')?.classList.add('hidden');
   document.getElementById('techSuccessBadge')?.classList.add('hidden');
   document.getElementById('addAssetBtnNav')?.classList.add('hidden');
   document.getElementById('logoutBtn')?.classList.add('hidden');
   document.getElementById('authBtn')?.classList.remove('hidden');
+
+  // 3. ซ่อนตารางและคอนเทนเนอร์เฉพาะสิทธิ์
   document.getElementById('damagedAssetsContainer')?.classList.add('hidden');
   document.getElementById('estimateAssetsContainer')?.classList.add('hidden');
   document.getElementById('successAssetsContainer')?.classList.add('hidden');
   document.getElementById('masterInventoryContainer')?.classList.add('hidden');
 
+  // 4. ปิดหน้าต่าง Modal, อัปเดต Layout แผนที่ และโหลดข้อมูลพิกัดในรูปแบบผู้ใช้งานทั่วไป
   closeModal();
   updateDashboardLayout(false);
   loadMarkers("");
