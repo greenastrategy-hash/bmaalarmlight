@@ -77,7 +77,27 @@ async function loadRepairHistoryTimeline(assetId) {
   }).join('');
 }
 
-// 🛠️ 3. เรนเดอร์ส่วนแสดงและบันทึกข้อมูลทางเทคนิค (เฉพาะ Admin & Technician)
+// 🛠️ ฟังก์ชันช่วยดึงค่าข้อมูลเทคนิคแบบยืดหยุ่น (แก้ปัญหามิสแมชของ Header คอลัมน์ P, Q, R, S)
+function getTechValue(item, possibleKeys) {
+  if (!item) return '';
+  // 1. ค้นหาแบบตรงตัวก่อน
+  for (const key of possibleKeys) {
+    if (item[key] !== undefined && item[key] !== null && String(item[key]).trim() !== '') {
+      return String(item[key]).trim();
+    }
+  }
+  // 2. ค้นหาแบบยืดหยุ่น (ตัดเว้นวรรค, เครื่องหมาย _ / - และเปลี่ยนเป็นอักษรเล็ก)
+  const itemKeys = Object.keys(item);
+  for (const pKey of possibleKeys) {
+    const normPKey = pKey.replace(/[_/ \-]/g, '').toLowerCase();
+    const foundKey = itemKeys.find(k => k.replace(/[_/ \-]/g, '').toLowerCase() === normPKey);
+    if (foundKey && item[foundKey] !== undefined && item[foundKey] !== null && String(item[foundKey]).trim() !== '') {
+      return String(item[foundKey]).trim();
+    }
+  }
+  return '';
+}
+
 function renderTechSpecsSection(item) {
   const container = document.getElementById('wsTechSpecsContainer');
   if (!container) return;
@@ -94,11 +114,11 @@ function renderTechSpecsSection(item) {
     return;
   }
 
-  // ดึงข้อมูลเทคนิคเฉพาะ
-  const cBox = item['ตู้ควบคุม_เบรกเกอร์'] || item['ตู้ควบคุม/เบรกเกอร์'] || item.controlBox || '';
-  const lType = item['หลอดไฟที่ติดตั้ง'] || item.lampType || '';
-  const wSize = item['ขนาดสายไฟ'] || item.wireSize || '';
-  const eTech = item['ข้อมูลเทคนิคอื่นๆ'] || item['อื่นๆ'] || item.extraTech || '';
+  // 🟢 ดึงข้อมูลด้วย getTechValue รองรับทั้งตู้ควบคุม_เบรกเกอร์ และ ตู้ควบคุม/เบรกเกอร์
+  const cBox = getTechValue(item, ['ตู้ควบคุม_เบรกเกอร์', 'ตู้ควบคุม/เบรกเกอร์', 'controlBox', 'ตู้ควบคุม']);
+  const lType = getTechValue(item, ['หลอดไฟที่ติดตั้ง', 'lampType', 'หลอดไฟ']);
+  const wSize = getTechValue(item, ['ขนาดสายไฟ', 'wireSize']);
+  const eTech = getTechValue(item, ['ข้อมูลเทคนิคอื่นๆ', 'อื่นๆ', 'extraTech']);
 
   const safeCBox = String(cBox).replace(/"/g, '&quot;');
   const safeLType = String(lType).replace(/"/g, '&quot;');
@@ -117,7 +137,7 @@ function renderTechSpecsSection(item) {
         </button>
       </div>
 
-      <!-- 🟢 แสดงข้อมูลในหน้าต่างรายละเอียด: บรรทัดแรกเป็นหัวข้อ บรรทัดที่ 2 เป็นข้อมูล -->
+      <!-- แสดงข้อมูลในหน้าต่างรายละเอียด -->
       <div id="techDisplayView_${item.ID}" class="grid grid-cols-2 gap-x-3 gap-y-2.5 text-slate-700">
         <div class="bg-white/60 p-1.5 rounded-lg border border-sky-100">
           <span class="block text-slate-500 font-semibold text-[11px]">🗄️ ตู้ควบคุม / เบรกเกอร์</span>
@@ -142,15 +162,15 @@ function renderTechSpecsSection(item) {
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="block text-[11px] font-semibold text-slate-600 mb-1">ตู้ควบคุม / เบรกเกอร์</label>
-            <input type="text" id="inputControlBox_${item.ID}" value="${safeCBox}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น 30A 2P Cutout">
+            <input type="text" id="inputControlBox_${item.ID}" value="${safeCBox}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น DB-2">
           </div>
           <div>
             <label class="block text-[11px] font-semibold text-slate-600 mb-1">หลอดไฟที่ติดตั้ง</label>
-            <input type="text" id="inputLampType_${item.ID}" value="${safeLType}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น LED Highbay 150W">
+            <input type="text" id="inputLampType_${item.ID}" value="${safeLType}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น LED 18 วัตต์">
           </div>
           <div>
             <label class="block text-[11px] font-semibold text-slate-600 mb-1">ขนาดสายไฟ</label>
-            <input type="text" id="inputWireSize_${item.ID}" value="${safeWSize}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น NYY 2x2.5 sq.mm">
+            <input type="text" id="inputWireSize_${item.ID}" value="${safeWSize}" class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white" placeholder="เช่น 2x2.5 sq.mm">
           </div>
           <div>
             <label class="block text-[11px] font-semibold text-slate-600 mb-1">อื่นๆ ระบุ</label>
@@ -164,78 +184,6 @@ function renderTechSpecsSection(item) {
       </form>
     </div>
   `;
-}
-
-// 🛠️ 4. ฟังก์ชันเปิด/ปิดฟอร์มแก้ไขข้อมูลเทคนิค
-function toggleTechEditForm(id) {
-  const displayView = document.getElementById(`techDisplayView_${id}`);
-  const editForm = document.getElementById(`techEditForm_${id}`);
-  if (displayView && editForm) {
-    displayView.classList.toggle('hidden');
-    editForm.classList.toggle('hidden');
-  }
-}
-
-// 🛠️ 5. ส่งข้อมูลบันทึกลง Google Sheet พร้อมอัปเดตหน้าต่างทันที
-async function submitTechSpecs(event, id) {
-  event.preventDefault();
-  const payload = {
-    id: id,
-    controlBox: document.getElementById(`inputControlBox_${id}`)?.value.trim() || '',
-    lampType: document.getElementById(`inputLampType_${id}`)?.value.trim() || '',
-    wireSize: document.getElementById(`inputWireSize_${id}`)?.value.trim() || '',
-    extraTech: document.getElementById(`inputExtraTech_${id}`)?.value.trim() || ''
-  };
-
-  showLoadingModal("⚡ กำลังบันทึกข้อมูลเทคนิค...", "กรุณารอสักครู่");
-
-  try {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'saveTechSpecs', data: payload })
-    }).then(r => r.json());
-
-    hideLoadingModal();
-
-    if (res && res.success) {
-      showQuietAlert("✅ บันทึกข้อมูลทางเทคนิคสำเร็จ");
-
-      // 🟢 1. อัปเดตข้อมูลในหน่วยความจำ (currentActiveItemRaw) ทันที
-      if (currentActiveItemRaw && currentActiveItemRaw.ID === id) {
-        currentActiveItemRaw['ตู้ควบคุม/เบรกเกอร์'] = payload.controlBox;
-        currentActiveItemRaw['ตู้ควบคุม_เบรกเกอร์'] = payload.controlBox;
-        currentActiveItemRaw.controlBox = payload.controlBox;
-
-        currentActiveItemRaw['หลอดไฟที่ติดตั้ง'] = payload.lampType;
-        currentActiveItemRaw.lampType = payload.lampType;
-
-        currentActiveItemRaw['ขนาดสายไฟ'] = payload.wireSize;
-        currentActiveItemRaw.wireSize = payload.wireSize;
-
-        currentActiveItemRaw['ข้อมูลเทคนิคอื่นๆ'] = payload.extraTech;
-        currentActiveItemRaw['อื่นๆ'] = payload.extraTech;
-        currentActiveItemRaw.extraTech = payload.extraTech;
-      }
-
-      // 🟢 2. อัปเดตข้อมูลในรายการหลัก (allData)
-      const targetInAll = allData.find(x => x.ID === id);
-      if (targetInAll) {
-        Object.assign(targetInAll, currentActiveItemRaw);
-      }
-
-      // 🟢 3. เรนเดอร์การ์ดแสดงผลบน Modal ใหม่ทันที
-      renderTechSpecsSection(currentActiveItemRaw);
-
-      // 🟢 4. โหลดพิกัด/ข้อมูลซิงค์เบื้องหลัง
-      if (typeof loadMarkers === 'function') loadMarkers();
-
-    } else {
-      alert("❌ บันทึกล้มเหลว: " + (res ? res.message : 'เกิดข้อผิดพลาด'));
-    }
-  } catch(e) {
-    hideLoadingModal();
-    alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: " + e.toString());
-  }
 }
 
 async function apiPost(action, data = {}) {
